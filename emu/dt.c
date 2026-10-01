@@ -743,6 +743,8 @@ dbg("UTC CONO CLEAR\n");
 			setstat(dt, RW_NULL);
 		}
 		if(IOB_CONO_SET){
+			int nunits;
+
 			dtsetgo(dt, bus->c12>>13 & 1);	// have to do this before deselection
 			dt->ut_pia = bus->c12 & 07;
 			dt->ut_units = bus->c12>>3 & 07;
@@ -763,7 +765,16 @@ dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 	dt->ut_time, dt->ut_fcn);
 
 			/* update selection, also done after delay */
-			selectdx(dt);
+			nunits = selectdx(dt);
+			/*
+			 * Selecting an unattached/nonexistent transport is an immediate
+			 * controller error.  Leaving GO set here makes software wait for
+			 * tape motion that can never occur.
+			 */
+			if(dt->ut_units_select && nunits != 1){
+				dt->ut_illegal_op = 1;
+				dtsetgo(dt, 0);
+			}
 
 			dt->delay = 0;
 			if(dt->ut_time){
@@ -801,7 +812,8 @@ dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 dbg("starting delay %d\n", dt->delay);
 			}else
 				if(!UT_DN &&
-				   !UT_WRTM)		// 3-14
+				   !UT_WRTM &&
+				   !dt->ut_illegal_op)	// 3-14
 					setstat(dt, RW_RQ);
 		}
 	}

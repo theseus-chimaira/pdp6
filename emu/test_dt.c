@@ -127,6 +127,7 @@ enum {
 	DEV5 = 050,
 	DEV6 = 060,
 	UNIT1 = 000,
+	UNIT2 = 010,
 };
 
 enum {
@@ -334,6 +335,13 @@ main()
 
 	bus_reset(bus);
 	assert(coni(bus, DC) == 0);
+
+	/* Transport label 2 is not connected: the 551 must fail selection
+	 * immediately instead of leaving GO set forever. */
+	cono(bus, UTC, SEL|GO|FWD|FN_RBN|UNIT2);
+	assert(coni(bus, UTS) & F33);
+	assert(dt->ut_go == 0);
+	bus_reset(bus);
 
 	printdc(dc);
 
