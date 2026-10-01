@@ -317,6 +317,7 @@ makeptr(int argc, char *argv[])
 {
 	Ptr *ptr;
 	Task t;
+	int freq;
 
 	ptr = malloc(sizeof(Ptr));
 	memset(ptr, 0, sizeof(Ptr));
@@ -325,8 +326,19 @@ makeptr(int argc, char *argv[])
 	ptr->dev.type = ptr_ident;
 	ptr->fd = -1;
 
+	/*
+	 * The historical default is intentionally unchanged.  A smaller positive
+	 * service divisor is useful for bootstrap/testing, analogous to reducing
+	 * PTR timing in other simulators.
+	 */
+	freq = 1000;
+	if(argc > 0){
+		freq = atoi(argv[0]);
+		if(freq < 1)
+			freq = 1;
+	}
 	// 400 chars per second, value around 10000?
-	t = (Task){ nil, ptrcycle, ptr, 1000, 0 };
+	t = (Task){ nil, ptrcycle, ptr, freq, 0 };
 	addtask(t);
 	return &ptr->dev;
 }
