@@ -154,6 +154,10 @@ struct Dis340
 	int lp_find;
 	int lp_flag;
 	int lp_enable;
+	int lpx, lpy;	/* beam coordinates latched on light-pen hit */
+	int penx, peny;	/* host light-pen position in Type-340 coordinates */
+	int pen;
+	int no_ink;
 	int rfd;
 	int hef, vef;
 	/* br shifted for IM and CM */
@@ -173,11 +177,32 @@ struct Dis340
 	CRT *crt;
 };
 
+static Lock crtlock;
+
 static void plotpixel(CRT *crt, int x, int y, int intensity);
 
 static void
 intensify(Dis340 *dis)
 {
+	int dx, dy, pen, penx, peny;
+
+	if(dis->no_ink)
+		return;
+
+	lock(&crtlock);
+	pen = dis->pen;
+	penx = dis->penx;
+	peny = dis->peny;
+	unlock(&crtlock);
+	if(pen && dis->lp_enable){
+		dx = penx - dis->x;
+		dy = peny - dis->y;
+		if(dx*dx + dy*dy <= 4){
+			dis->lp_find = 1;
+			dis->lpx = dis->x;
+			dis->lpy = dis->y;
+		}
+	}
 	plotpixel(dis->crt, dis->x, 1023-dis->y, dis->i);
 }
 
@@ -207,9 +232,34 @@ initiate(Dis340 *dis)
 	dis->lp_enable = 0;	// TODO: not in schematics?
 	dis->lp_find = 0;
 	dis->lp_flag = 0;
+	dis->no_ink = 0;
 	dis->stop = 0;
 	escape(dis);
 	rfd(dis);
+}
+
+static void
+resume(Dis340 *dis)
+{
+	/*
+	 * Type-344 RESUME acknowledges the special stop conditions without
+	 * changing the programmed light-pen enable.  A vector/increment sequence
+	 * stopped on a light-pen hit has no outstanding delay in this model, so
+	 * restart that sequence explicitly.  An edge escape has already returned
+	 * the 340 to parameter mode; in that case request the next half-word.
+	 */
+	dis->lp_find = 0;
+	dis->lp_flag = 0;
+	dis->hef = 0;
+	dis->vef = 0;
+	if(dis->rfd)
+		return;
+	if(dis->mode == PM){
+		rfd(dis);
+		return;
+	}
+	if(dis->mode != CM && !dis->intdelay)
+		dis->intdelay = 1;
 }
 
 static void
@@ -548,8 +598,6 @@ struct Color
 	u8 r, g, b, a;
 };
 
-static Lock crtlock;
-
 static Color phos1 = { 0x3d, 0xaa, 0xf7, 0xff };
 static Color phos1blur = { 0, 0x63, 0xeb, 0xff };
 static Color phos2 = { 0x79, 0xcc, 0x3e, 0xff };
@@ -853,17 +901,33 @@ renderthread(void *arg)
 	unlock(&initlock);
 
 	for(;;){
-#ifdef JUSTTESTING
 		while(SDL_PollEvent(&ev))
 			switch(ev.type){
+			case SDL_MOUSEMOTION:
+				lock(&crtlock);
+				dis->penx = ev.motion.x;
+				dis->peny = 1023-ev.motion.y;
+				unlock(&crtlock);
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP:
+				if(ev.button.button == SDL_BUTTON_LEFT){
+					lock(&crtlock);
+					dis->pen = ev.type == SDL_MOUSEBUTTONDOWN;
+					dis->penx = ev.button.x;
+					dis->peny = 1023-ev.button.y;
+					unlock(&crtlock);
+				}
+				break;
+#ifdef JUSTTESTING
 			case SDL_KEYDOWN:
 				if(ev.key.keysym.scancode == SDL_SCANCODE_Q)
 					exit(0);
 				else
 					initiate(dis);
 				break;
-			}
 #endif
+			}
 		SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
 		SDL_RenderClear(renderer);
 
@@ -950,20 +1014,26 @@ wake_dis(void *dev)
 
 	if(bus->devcode == DIS){
 		if(IOB_STATUS){
-			// HACK: for IO bus multiplexing. this bit means the 340 is on the 6
+			/* MIT AI assignment bit: this 340 is attached to this PDP-6. */
 			bus->c12 |= F0;
+			bus->c12 |= (word)dis->mode << 15;
+			if(dis->vef) bus->c12 |= F24;
 			if(dis->lp_flag) bus->c12 |= F25;
-			if(dis->hef || dis->vef) bus->c12 |= F26;
+			if(dis->hef) bus->c12 |= F26;
 			if(dis->stop && dis->br&01000) bus->c12 |= F27;
-// TODO: what about RFD?
 			if(dis->ibc == 0 && dis->rfd) bus->c12 |= F28;
 			bus->c12 |= (dis->pia_spec & 7) << 3;
 			bus->c12 |= dis->pia_data & 7;
 //printf("DIS STATUS %012lo\n", bus->c12);
 		}
 		if(IOB_DATAI){
-			bus->c12 |= dis->x;
-			bus->c12 |= dis->y << 18;
+			if(dis->lp_flag){
+				bus->c12 |= dis->lpx;
+				bus->c12 |= (word)dis->lpy << 18;
+			}else{
+				bus->c12 |= dis->x;
+				bus->c12 |= (word)dis->y << 18;
+			}
 //printf("DIS DATAI %012lo\n", bus->c12);
 		}
 		if(IOB_CONO_CLEAR){
@@ -975,6 +1045,12 @@ wake_dis(void *dev)
 			dis->pia_data |= bus->c12 & 7;
 			dis->pia_spec |= bus->c12>>3 & 7;
 
+			if(bus->c12 & F24)
+				dis->no_ink = 0;
+			if(bus->c12 & F25)
+				dis->no_ink = 1;
+			if(bus->c12 & F28)
+				resume(dis);
 			if(bus->c12 & F29)
 				initiate(dis);
 //printf("DIS CONO SET %012lo\n", bus->c12);
