@@ -329,7 +329,7 @@ main()
 	dtconn(dc, dt);
 	dx = (Dx555*)makedx(0, nil);
 	dxconn(dt, dx, 1);
-	dx->dev.attach((Device*)dx, "../test/out.dt6");
+	dx->dev.mount((Device*)dx, "../test/out.dt6");
 
 	bus_reset(bus);
 	assert(coni(bus, DC) == 0);
