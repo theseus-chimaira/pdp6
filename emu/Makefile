@@ -1,4 +1,4 @@
-SRC=emu.c apr.c mem.c tty.c pt.c dc.c dt.c netmem.c netcons.c cmd.c util.c threading.c rtc.c ../tools/pdp6common.c
+SRC=emu.c apr.c mem.c tty.c pt.c dc.c dt.c pclk.c netmem.c netcons.c cmd.c util.c threading.c rtc.c ../tools/pdp6common.c
 H=pdp6.h ../tools/pdp6common.h threading.h
 # clang
 #CFLAGS= -Wno-shift-op-parentheses -Wno-logical-op-parentheses \
@@ -24,6 +24,9 @@ test_dc: test_dc.c dc.c $(H)
 
 test_dt: test_dt.c dc.c dt.c $(H)
 	$(CC) -o $@ $(CFLAGS) test_dt.c dc.c dt.c
+
+test_pclk: test_pclk.c pclk.c $(H)
+	$(CC) -o $@ $(CFLAGS) test_pclk.c pclk.c
 
 test_apr: test_apr.c main_panel.c dis340.c $(SRC) $(H)
 	$(CC) -o $@ $(CFLAGS) $(SDLFLAGS) test_apr.c main_panel.c dis340.c $(SRC) $(LIBS) $(SDLLIBS)

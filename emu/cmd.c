@@ -233,6 +233,7 @@ DevDef definitions[] = {
 	{ DC_IDENT, makedc },
 	{ DT_IDENT, makedt },
 	{ DX_IDENT, makedx },
+	{ PCLK_IDENT, makepclk },
 #ifdef GRAPHICS
 	{ DIS_IDENT, makedis },
 	{ JOY_IDENT, makejoy },

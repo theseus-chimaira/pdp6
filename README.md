@@ -36,6 +36,8 @@ Otherwise you need SDL and pthread.
 
 The cpu (apr), console tty, paper tape and punch,
 the data control and DECtape are implemented.
+The Stanford Phil Petit calendar clock at I/O device 0730 is implemented
+with host UTC time using the historical register encoding.
 340 display is also sort of working.
 The panel is missing the repeat delay knobs,
 but the functionality is implemented.

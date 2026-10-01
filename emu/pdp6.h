@@ -654,6 +654,12 @@ extern char *dt_ident;
 Device *makedt(int argc, char *argv[]);
 void dtconn(Dc136 *dc, Dt551 *dt);
 
+/* Stanford Phil Petit calendar clock */
+#define PCLK (0730>>2)
+#define PCLK_IDENT "pclk730"
+extern char *pclk_ident;
+Device *makepclk(int argc, char *argv[]);
+
 
 #define DIS (0130>>2)
 #define DIS_IDENT "dis340"
