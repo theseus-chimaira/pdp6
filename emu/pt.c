@@ -134,6 +134,7 @@ ptrcycle(void *p)
 {
 	Ptr *ptr;
 	uchar c;
+	int n;
 
 	ptr = p;
 
@@ -145,7 +146,9 @@ ptrcycle(void *p)
 	if(!hasinput(ptr->fd))
 		return;		/* no feed so no pulses */
 
-	read(ptr->fd, &c, 1);
+	n = read(ptr->fd, &c, 1);
+	if(n != 1)
+		return;
 
 	if(!ptr->busy)
 		return;
