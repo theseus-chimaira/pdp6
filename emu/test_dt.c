@@ -126,6 +126,7 @@ enum {
 	DEV4 = 040,
 	DEV5 = 050,
 	DEV6 = 060,
+	UNIT1 = 000,
 };
 
 enum {
@@ -201,7 +202,7 @@ fwdtest_w(void)
 	fillbuf(128);
 
 	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
-	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WBN|DEV1|0);
+	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WBN|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
 		if(pireq == 7){
@@ -226,7 +227,7 @@ revtest_w(void)
 	fillbuf(128);
 
 	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
-	cono(bus, UTC, SEL|GO|REV|DLY3|FN_WD|DEV1|0);
+	cono(bus, UTC, SEL|GO|REV|DLY3|FN_WD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
 		if(pireq == 7){
@@ -249,7 +250,7 @@ fwdtest_r(void)
 	dx->cur = dx->start;
 
 	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV1|7);
-	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_RD|DEV1|0);
+	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_RD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
 		if(pireq == 7){
@@ -269,7 +270,7 @@ revtest_r(void)
 	dx->cur = dx->end-1;
 
 	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV1|7);
-	cono(bus, UTC, SEL|GO|REV|DLY3|FN_RD|DEV1|0);
+	cono(bus, UTC, SEL|GO|REV|DLY3|FN_RD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
 		if(pireq == 7){
@@ -291,7 +292,7 @@ fmttest(void)
 	fillbuf_fmt();
 
 	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
-	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WTM|DEV1|0);
+	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WTM|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
 		if(pireq == 7){
@@ -301,7 +302,7 @@ fmttest(void)
 				datao(bus, DC, w);
 //				printf("DC send: %012lo\n", w);
 			}else
-				cono(bus, UTC, SEL|DLY2|DEV1|0);
+				cono(bus, UTC, SEL|DLY2|UNIT1|0);
 //			break;
 		}
 	}

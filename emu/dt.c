@@ -131,7 +131,12 @@ dxmount(Device *dev, const char *path)
 void
 dxconn(Dt551 *dt, Dx555 *dx, int n)
 {
-	dt->dx[n%8] = dx;
+	/*
+	 * The transport labels used by the emulator CLI are 1..8, but the
+	 * Type-551 controller's three-bit unit field is encoded 0..7.
+	 */
+	n = (n-1) & 7;
+	dt->dx[n] = dx;
 	dx->dt = dt;
 	dx->unit = n;
 }
@@ -565,7 +570,7 @@ static int
 selectdx(Dt551 *dt)
 {
 	int i, n, nunits;
-	n = dt->ut_units == 0 ? 8 : dt->ut_units;
+	n = dt->ut_units;
 	nunits = 0;
 	dt->seldx = nil;
 	if(dt->ut_units_select)
