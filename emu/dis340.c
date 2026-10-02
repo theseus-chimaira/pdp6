@@ -266,10 +266,15 @@ resume(Dis340 *dis)
 {
 	/*
 	 * Type-344 RESUME acknowledges the special stop conditions without
-	 * changing the programmed light-pen enable.  A vector/increment sequence
-	 * stopped on a light-pen hit has no outstanding delay in this model, so
-	 * restart that sequence explicitly.  An edge escape has already returned
-	 * the 340 to parameter mode; in that case request the next half-word.
+	 * changing the programmed light-pen enable.  The core F28 behavior that
+	 * clears LP/HEF/VEF follows Lars Brinkhoff's unmerged aap/pdp6
+	 * lars/gronk branch, commit 99dbf06.  This implementation extends that
+	 * behavior with the restart semantics needed by the PDP-6 interface.
+	 *
+	 * A vector/increment sequence stopped on a light-pen hit has no
+	 * outstanding delay in this model, so restart that sequence explicitly.
+	 * An edge escape has already returned the 340 to parameter mode; in that
+	 * case request the next half-word.
 	 */
 	dis->lp_find = 0;
 	dis->lp_flag = 0;
