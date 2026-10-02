@@ -596,6 +596,7 @@ struct Dx555
 	int motion;	// -1 rev, 0 stop, 1 fwd
 
 	int fd;
+	int mounted;	/* transport exists, but media may be absent */
 	uchar *start;
 	uchar *cur;
 	uchar *end;
@@ -653,6 +654,7 @@ struct Dt551
 	/* error check */
 	int utek;	/* 6 bits */
 	int uteck;
+	int sync_lines;	/* raw mark lines still needed after T CLEAR */
 
 	int rw_state;	/* null, rq, active */
 

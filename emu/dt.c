@@ -20,7 +20,17 @@ enum
 {
 //	DTSIZE = 922512
 	// 01102 blocks, 2700 word for start/end each + safe zone
-	DTSIZE = 987288 + 1000
+	DTSIZE = 987288 + 1000,
+	DT_MARK_WINDOW_LINES = 9,
+	/*
+	 * A moving Type-555 cannot reverse instantaneously.  Preserve a minimum
+	 * physical coast of two complete mark-track windows before the transport
+	 * changes direction.  This is enough raw tape travel for the 551's serial
+	 * mark decoder to leave the old block boundary and reacquire the adjacent
+	 * reverse/forward block mark, while remaining far below real TU55
+	 * mechanical turnaround distance.
+	 */
+	DT_TURN_COAST_LINES = DT_MARK_WINDOW_LINES * 2
 };
 
 /* Transport */
@@ -102,13 +112,14 @@ dxunmount(Device *dev)
 
 	dx = (Dx555*)dev;
 	if(dx->fd < 0)
-		return;
+		goto reset;
 
 	lseek(dx->fd, 0, SEEK_SET);
 	write(dx->fd, dx->start, dx->size);
 	close(dx->fd);
 	dx->fd = -1;
-
+reset:
+	dx->mounted = 0;
 	resetdx(dx);
 }
 
@@ -130,6 +141,7 @@ dxmount(Device *dev, const char *path)
 			dx->size = DTSIZE;
 		dx->cur = dx->start;
 		dx->end = dx->start + dx->size;
+		dx->mounted = 1;
 	}
 }
 
@@ -267,6 +279,17 @@ dbg(char *fmt, ...)
 	}
 }
 
+static void
+dbg2(char *fmt, ...)
+{
+	if(dtdbg > 1){
+		va_list ap;
+		va_start(ap, fmt);
+		vfprintf(stdout, fmt, ap);
+		va_end(ap);
+	}
+}
+
 //#define debug(...) dbg(__VA_ARGS__)
 #define debug(...)
 
@@ -350,6 +373,12 @@ dt_tclear(Dt551 *dt)
 	dt->tdata = 0;
 	dt->utek = 0;
 	dt->uteck = 0;
+	/*
+	 * TMK is a nine-line serial window.  Until nine fresh lines have been
+	 * sensed after T CLEAR, UTE/active-state validation would be comparing
+	 * a partial window against full mark codes.
+	 */
+	dt->sync_lines = DT_MARK_WINDOW_LINES;
 }
 
 /* This is a function for debugging purposes */
@@ -482,6 +511,7 @@ dt_tp2(Dt551 *dt)
 		/* except checksums */
 		if((prev.tdata & 0102) == 0){
 			int rwb = dt->rwb;
+			/* Reverse tape motion reverses the two physical 3-bit cells. */
 			if(REV)
 				rwb = rwb>>3 & 07 | rwb<<3 & 070;
 			dcgv(dt->dc, DEVNO, rwb, REV);
@@ -528,7 +558,10 @@ dt_tp2(Dt551 *dt)
 		/* test checksum. NB: manual says should be 0
 		 * TODO: not sure about ACTIVE */
 		if(prev.rw_state == RW_ACTIVE && dt->lb != 077){
-debug("CHECKSUM ERR\n");
+			dbg("DTC checksum error unit=%d pos=%ld fcn=%o rw=%d lb=%02o\n",
+			    dt->seldx ? dt->seldx->unit : -1,
+			    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
+			    dt->ut_fcn, dt->rw_state, dt->lb);
 			dt->ut_info_error = 1;	// 3-13
 		}
 	}
@@ -538,24 +571,38 @@ debug("CHECKSUM ERR\n");
 		dt->ut_jb_done_flag = 1;
 
 	/* Catch wrongly set active state; 3-16 */
-	if(UTE_ACTIVE_ERROR){
+	if(dt->sync_lines == 0 && UTE_ACTIVE_ERROR){
+		dbg("DTC active-state error unit=%d pos=%ld fcn=%o rw=%d tmk=%03o\n",
+		    dt->seldx ? dt->seldx->unit : -1,
+		    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
+		    dt->ut_fcn, dt->rw_state, dt->tmk);
 		dt->ut_info_error = 1;
 		setstat(dt, RW_NULL);
 	}
 	/* Catch invalid mark code */
-	if(UTE_ERROR){
-debug("TRACK ERROR\n");
+	if(dt->sync_lines == 0 && UTE_ERROR){
+		dbg("DTC mark-track error unit=%d pos=%ld fcn=%o rw=%d utek=%03o\n",
+		    dt->seldx ? dt->seldx->unit : -1,
+		    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
+		    dt->ut_fcn, dt->rw_state, dt->utek);
 		dt->ut_info_error = 1;		// 3-15
 	}
 
 	/* Stop activity once job gets done */
 	if(!prev.ut_jb_done_flag && dt->ut_jb_done_flag){	// 3-8
-		if(dtdbg && UT_BM)
+		if(dtdbg > 1 && UT_BM)
 			fprintf(stderr,
 			    "RBN done unit=%d pos=%ld da=%012lo db=%012lo cct=%d\n",
 			    dt->seldx ? dt->seldx->unit : -1,
 			    dt->seldx ? (long)(dt->seldx->cur - dt->seldx->start) : -1L,
 			    dt->dc->da, dt->dc->db, dt->dc->cct);
+		if(dtdbg && UT_DATA)
+			fprintf(stderr,
+			    "DTC data done unit=%d pos=%ld fcn=%o rev=%d da=%012lo db=%012lo cct=%d\n",
+			    dt->seldx ? dt->seldx->unit : -1,
+			    dt->seldx ? (long)(dt->seldx->cur - dt->seldx->start) : -1L,
+			    dt->ut_fcn, dt->ut_rev, dt->dc->da, dt->dc->db,
+			    dt->dc->cct);
 		setstat(dt, RW_NULL);
 	}
 }
@@ -597,7 +644,7 @@ dt_tp4(Dt551 *dt)
 debug("Getting LB\n");
 			dt->rwb |= dt->lb;
 		}
-		// 3-6
+		/* Normalize the two physical 3-bit cells before reverse writing. */
 		if(REV)
 			dt->rwb = dt->rwb>>3 & 07 | dt->rwb<<3 & 070;
 	}
@@ -613,7 +660,8 @@ selectdx(Dt551 *dt)
 	dt->seldx = nil;
 	if(dt->ut_units_select)
 		for(i = 0; i < 8; i++)
-			if(dt->dx[i] && dt->dx[i]->unit == n){
+			if(dt->dx[i] && dt->dx[i]->mounted &&
+			   dt->dx[i]->unit == n){
 				dt->seldx = dt->dx[i];
 				nunits++;
 			}
@@ -685,6 +733,9 @@ dtbuf |= dt->sense & 07;
 	// get next rwb from DC to write
 	dt_tp4(dt);
 
+	if(dt->sync_lines > 0)
+		dt->sync_lines--;
+
 	state = dt->rw_state == RW_NULL ? 'n' :
 	        dt->rw_state == RW_RQ ? 'r' :
 	        dt->rw_state == RW_ACTIVE ? 'a' : 'x';
@@ -750,7 +801,7 @@ wake_dt(void *dev)
 	}
 	if(bus->devcode == UTC){
 		if(IOB_STATUS){
-dbg("UTC STATUS\n");
+dbg2("UTC STATUS\n");
 			if(dt->ut_units_select) bus->c12 |= F19;
 			if(dt->ut_tape_end_enable) bus->c12 |= F20;
 			if(dt->ut_jb_done_enable) bus->c12 |= F21;
@@ -763,7 +814,7 @@ dbg("UTC STATUS\n");
 			bus->c12 |= dt->ut_pia & 07;
 		}
 		if(IOB_CONO_CLEAR){
-dbg("UTC CONO CLEAR\n");
+dbg2("UTC CONO CLEAR\n");
 			dt->ut_incomp_block = 0;
 			dt->ut_wren = 0;
 			dt->time_flag = 0;
@@ -777,9 +828,13 @@ dbg("UTC CONO CLEAR\n");
 		}
 		if(IOB_CONO_SET){
 			int nunits;
+			int oldfcn;
+			int oldrev;
 			Dx555 *oldsel;
 
 			oldsel = dt->seldx;
+			oldfcn = dt->ut_fcn;
+			oldrev = dt->ut_rev;
 			dtsetgo(dt, bus->c12>>13 & 1);	// have to do this before deselection
 			dt->ut_pia = bus->c12 & 07;
 			dt->ut_units = bus->c12>>3 & 07;
@@ -794,13 +849,49 @@ dbg("UTC CONO CLEAR\n");
 			// UT CONO SET LONG, 1ms after UT CONO SET
 			//  triggers UT START level until end of delay
 
-dbg("UTC CONO SET %06lo\n", bus->c12 & 0777777);
-dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
+dbg2("UTC CONO SET %06lo\n", bus->c12 & 0777777);
+dbg2("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 	dt->ut_go, dt->ut_rev,
 	dt->ut_time, dt->ut_fcn);
 
 			/* update selection, also done after delay */
 			nunits = selectdx(dt);
+			if(dtdbg && dt->ut_go && dt->ut_fcn == 3)
+				fprintf(stderr,
+				    "DTC read-data start unit=%d pos=%ld rev=%d\n",
+				    dt->seldx ? dt->seldx->unit : -1,
+				    dt->seldx ?
+				    (long)(dt->seldx->cur-dt->seldx->start) : -1L,
+				    dt->ut_rev);
+			if(dtdbg && oldfcn == 3 && dt->ut_fcn == 0)
+				fprintf(stderr,
+				    "DTC read-data leave unit=%d pos=%ld rev=%d\n",
+				    oldsel ? oldsel->unit : -1,
+				    oldsel ? (long)(oldsel->cur-oldsel->start) : -1L,
+				    oldrev);
+			/*
+			 * Model the unavoidable physical coast before a moving Type-555
+			 * reverses.  With zero turnaround distance the raw-line model skips
+			 * the adjacent reverse block mark (for example FWD block 3 would
+			 * reverse directly to block 1 instead of block 2).  Coast in the old
+			 * direction, then T CLEAR/reacquire before consuming reverse lines.
+			 */
+			if(dt->ut_go && oldsel == dt->seldx && oldrev != dt->ut_rev){
+				if(oldrev){
+					if(dt->seldx->cur - dt->seldx->start >
+					    DT_TURN_COAST_LINES)
+						dt->seldx->cur -= DT_TURN_COAST_LINES;
+					else
+						dt->seldx->cur = dt->seldx->start;
+				}else{
+					if(dt->seldx->end - dt->seldx->cur >
+					    DT_TURN_COAST_LINES)
+						dt->seldx->cur += DT_TURN_COAST_LINES;
+					else
+						dt->seldx->cur = dt->seldx->end-1;
+				}
+				dt_tclear(dt);
+			}
 			/*
 			 * Oldemu keeps mark/data timing in the controller rather than in
 			 * each Type-555 transport.  If software changes unit while GO stays
@@ -849,7 +940,7 @@ dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 
 				dt->time_flag = 0;
 				// now wait
-dbg("starting delay %d\n", dt->delay);
+dbg2("starting delay %d\n", dt->delay);
 			}else
 				if(!UT_DN &&
 				   !UT_WRTM &&
@@ -896,7 +987,7 @@ dtdep(Device *dev, const char *reg, word data)
 
 	dt = (Dt551*)dev;
 	if(strcmp(reg, "btm_wr") == 0) dt->ut_btm_switch = data&1;
-	else if(strcmp(reg, "dbg") == 0) dtdbg = data&1;
+	else if(strcmp(reg, "dbg") == 0) dtdbg = data&3;
 	else return 1;
 	return 0;
 }

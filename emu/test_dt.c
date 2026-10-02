@@ -334,11 +334,14 @@ main()
 	dtconn(dc, dt);
 	dx = (Dx555*)makedx(0, nil);
 	dxconn(dt, dx, 1);
+	dx->mounted = 1;
 	dx2 = (Dx555*)makedx(0, nil);
 	dxconn(dt, dx2, 2);
+	dx2->mounted = 1;
 
 	bus_reset(bus);
 	assert(coni(bus, DC) == 0);
+
 	dt->ut_btm_switch = 1;
 	fmttest();
 	dt->ut_btm_switch = 0;
@@ -382,7 +385,17 @@ main()
 	assert(!dt->ut_illegal_op);
 	assert(!dt->ut_info_error);
 	assert(dt->ut_jb_done_flag);
-	bus_reset(bus);
+
+	/* A configured transport without media must fail immediately. */
+	{
+		Dx555 *empty;
+		empty = (Dx555*)makedx(0, nil);
+		dxconn(dt, empty, 3);
+		cono(bus, UTC, SEL|GO|FWD|FN_RBN|020);
+		assert(dt->ut_illegal_op);
+		assert(dt->ut_go == 0);
+		bus_reset(bus);
+	}
 
 	printdc(dc);
 
