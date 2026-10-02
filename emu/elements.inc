@@ -1,13 +1,13 @@
 Element keys[] = {
 	/* keys */
-	{ keysurf, &opgrid2, { 0, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 2.75, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 5.5, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 8.25, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 11, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 13.75, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 16.5, 2 }, 1, 0 },
-	{ keysurf, &opgrid2, { 19.25, 2 }, 1, 0 },
+	{ keysurf, &opgrid2, { 0, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 2.75, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 5.5, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 8.25, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 11, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 13.75, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 16.5, 2 }, 0, 0 },
+	{ keysurf, &opgrid2, { 19.25, 2 }, 0, 0 },
 };
 
 Element switches[] = {
