@@ -32,5 +32,3 @@ test_dis340: test_dis340.c dis340.c chargen.inc $(SRC) $(H)
 	$(CC) -o $@ $(CFLAGS) -ffunction-sections -fdata-sections $(SDLFLAGS) \
 		test_dis340.c $(LIBS) $(SDLLIBS) -Wl,--gc-sections
 
-test_apr: test_apr.c main_panel.c dis340.c $(SRC) $(H)
-	$(CC) -o $@ $(CFLAGS) $(SDLFLAGS) test_apr.c main_panel.c dis340.c $(SRC) $(LIBS) $(SDLLIBS)
