@@ -193,7 +193,9 @@ updateapr(Apr *apr, Ptr *ptr)
 	misc_l[2].state = apr->run;
 	misc_l[3].state = apr->sw_repeat = misc_sw[0].state;
 	misc_l[4].state = apr->sw_addr_stop = misc_sw[1].state;
-	misc_l[5].state = apr->sw_power = misc_sw[2].state;
+	if(!apr->remote_power_valid)
+		apr->sw_power = misc_sw[2].state;
+	misc_l[5].state = apr->sw_power;
 	misc_l[6].state = apr->sw_mem_disable = misc_sw[3].state;
 	apr->data = getelements(data_sw, 36);
 	apr->mas = getelements(ma_sw, 18);

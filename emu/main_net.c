@@ -88,7 +88,8 @@ talknetwork(int fd, void *foo)
 		apr->sw_addr_stop   = !!(buf[12] & 010);
 		apr->sw_repeat      = !!(buf[12] & 4);
 		apr->sw_mem_disable = !!(buf[12] & 2);
-		apr->sw_power       = !!(buf[12] & 1);
+		if(!apr->remote_power_valid)
+			apr->sw_power = !!(buf[12] & 1);
 
 		// TODO: buf[13] is a speed knob
 

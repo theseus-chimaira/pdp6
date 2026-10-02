@@ -710,6 +710,87 @@ c_show(int argc, char *argv[])
 }
 
 static void
+c_readin(int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+	apr_readin(getapr());
+}
+
+static void
+c_start(int argc, char *argv[])
+{
+	word addr;
+
+	if(argc < 2){
+		printf("Not enough arguments\n");
+		return;
+	}
+	addr = parsen(&argv[1]);
+	if(addr == ~0 || addr > RT){
+		printf("Invalid start address\n");
+		return;
+	}
+	apr_start_at(getapr(), (hword)addr);
+}
+
+static void
+c_switches(int argc, char *argv[])
+{
+	word switches;
+
+	if(argc < 2){
+		printf("Not enough arguments\n");
+		return;
+	}
+	switches = parsen(&argv[1]);
+	if(switches == ~0)
+		return;
+	apr_set_switches(getapr(), switches);
+}
+
+static void
+c_power(int argc, char *argv[])
+{
+	if(argc < 2){
+		printf("Not enough arguments\n");
+		return;
+	}
+	if(strcmp(argv[1], "on") == 0)
+		apr_set_power(getapr(), 1);
+	else if(strcmp(argv[1], "off") == 0)
+		apr_set_power(getapr(), 0);
+	else
+		printf("power expects on or off\n");
+}
+
+static void
+c_ptrmotor(int argc, char *argv[])
+{
+	Device *dev;
+	int on;
+
+	if(argc < 3){
+		printf("Not enough arguments\n");
+		return;
+	}
+	dev = getdevice(argv[1]);
+	if(dev == nil || strcmp(dev->type, ptr_ident) != 0){
+		printf("%s is not a Type 760 paper tape reader\n", argv[1]);
+		return;
+	}
+	if(strcmp(argv[2], "on") == 0)
+		on = 1;
+	else if(strcmp(argv[2], "off") == 0)
+		on = 0;
+	else{
+		printf("ptrmotor expects on or off\n");
+		return;
+	}
+	ptr_setmotor((Ptr*)dev, on);
+}
+
+static void
 c_quit(int argc, char *argv[])
 {
 	quit(0);
@@ -746,6 +827,16 @@ struct {
 		"load file into memory: load [-sbr] filename" },
 	{ "show", c_show,
 		"show configuration" },
+	{ "readin", c_readin,
+		"press the PDP-6 READ IN key" },
+	{ "start", c_start,
+		"press START with an automated address: start address" },
+	{ "switches", c_switches,
+		"set the automated PDP-6 console switch word" },
+	{ "power", c_power,
+		"set automated PDP-6 panel power: power on|off" },
+	{ "ptrmotor", c_ptrmotor,
+		"set Type 760 reader motor: ptrmotor device on|off" },
 	{ "quit", c_quit,
 		"quit emulator" },
 	{ "help", c_help,

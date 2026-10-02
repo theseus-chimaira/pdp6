@@ -215,6 +215,10 @@ EXDEPREGS
 #define X(name) if(strcmp(#name, reg) == 0) return apr->c.name;
 EXDEPSREGS
 #undef X
+	if(strcmp("pir", reg) == 0) return apr->pir;
+	if(strcmp("pih", reg) == 0) return apr->pih;
+	if(strcmp("pio", reg) == 0) return apr->pio;
+	if(strcmp("pi_req", reg) == 0) return apr->pi_req;
 	return ~0;
 }
 static int
@@ -967,6 +971,7 @@ defpulse(mr_pwr_clr)
 	 * better call directly before external pulses can trigger stuff */
 	mr_start_p(apr);	// 5-2
 	mr_clr_p(apr);	// 5-2
+	apr->power_settling = 0;
 }
 
 /* CPA and PI devices */
@@ -1026,7 +1031,8 @@ wake_cpa(void *dev)
 
 	// 5-2
 	if(IOB_DATAI)
-		apr->n.ar = apr->data;
+		apr->n.ar = apr->remote_switches_valid ?
+		    apr->remote_switches : apr->data;
 	// 5-13
 	if(IOB_DATAO_CLEAR)
 		ex_clr_p(apr);
@@ -2434,13 +2440,15 @@ defpulse(pi_sync)
 }
 
 // 5-1
-#define KEY_MANUAL (apr->key_readin || apr->key_start || apr->key_inst_cont ||\
+#define KEY_READIN (apr->key_readin || apr->remote_readin)
+#define KEY_START (apr->key_start || apr->remote_start)
+#define KEY_MANUAL (KEY_READIN || KEY_START || apr->key_inst_cont ||\
                     apr->key_mem_cont || apr->key_ex || apr->key_dep ||\
                     apr->key_ex_nxt || apr->key_dep_nxt || apr->key_exec ||\
                     apr->key_io_reset)
-#define KEY_MA_MAS (apr->key_readin || apr->key_start ||\
+#define KEY_MA_MAS (KEY_READIN || KEY_START ||\
                     apr->key_ex_sync || apr->key_dep_sync)
-#define KEY_CLR_RIM (!(apr->key_readin || apr->key_inst_cont || apr->key_mem_cont))
+#define KEY_CLR_RIM (!(KEY_READIN || apr->key_inst_cont || apr->key_mem_cont))
 #define KEY_EXECUTE (apr->key_exec && !apr->run)
 #define KEY_EX_EX_NXT (apr->key_ex_sync || apr->key_ex_nxt)
 #define KEY_DP_DP_NXT (apr->key_dep_sync || apr->key_dep_nxt)
@@ -2467,7 +2475,7 @@ defpulse_(st7)
 	apr->sf7 = 0;		// 5-6
 	if(apr->run)
 		pulse(apr, apr->key_ex_st || apr->key_dep_st ? &kt1 : &it0, 0);	// 5-1, 5-3
-	if(apr->key_start || apr->key_readin || apr->key_inst_cont)
+	if(KEY_START || KEY_READIN || apr->key_inst_cont)
 		pulse(apr, &kt4, 0);	// 5-2
 }
 
@@ -3320,6 +3328,8 @@ defpulse(key_wr)
 defpulse(key_go)
 {
 	apr->run = 1;		// 5-1
+	apr->remote_readin = 0;
+	apr->remote_start = 0;
 	apr->key_ex_st = 0;	// 5-1
 	apr->key_dep_st = 0;	// 5-1
 	apr->key_ex_sync = 0;	// 5-1
@@ -3354,7 +3364,7 @@ defpulse_(kt4)
 
 defpulse(kt3)
 {
-	if(apr->key_readin || apr->key_start)
+	if(KEY_READIN || KEY_START)
 		apr->pc |= apr->ma;		// 5-12
 	if(KEY_EXECUTE){
 		apr->n.mb = apr->c.ar;		// 6-3
@@ -3365,14 +3375,15 @@ defpulse(kt3)
 		pulse(apr, &key_rd, 0);		// 5-2
 	if(KEY_DP_DP_NXT)
 		pulse(apr, &key_wr, 0);		// 5-2
-	if(apr->key_start || apr->key_readin || apr->key_inst_cont)
+	if(KEY_START || KEY_READIN || apr->key_inst_cont)
 		pulse(apr, &key_go, 0);		// 5-2
 }
 
 defpulse(kt2)
 {
 	if(KEY_MA_MAS)
-		apr->ma |= apr->mas;		// 7-1
+		apr->ma |= apr->remote_start ?
+		    apr->remote_start_addr : apr->mas;	// 7-1
 	if(KEY_EXECUTE_DP_DPNXT)
 		apr->n.ar |= apr->data;		// 5-2
 	pulse(apr, &kt3, 200);	// 5-2
@@ -3395,9 +3406,9 @@ defpulse_(kt1)
 	if(apr->key_mem_cont && apr->mc_stop)
 		pulse(apr, &mc_rs_t0, 0);	// 7-8
 
-	if(apr->key_readin)
+	if(KEY_READIN)
 		set_key_rim_sbr(apr, 1);	// 5-2
-	if(apr->key_readin || apr->key_start)
+	if(KEY_READIN || KEY_START)
 		apr->pc = 0;			// 5-12
 	if(KEY_MA_MAS)
 		apr->ma = 0;			// 5-2
@@ -3465,6 +3476,7 @@ aprstart(Apr *apr)
 	apr->iobus.c34 = 0;
 
 	pulse(apr, &mr_pwr_clr, 100);	// random value
+	apr->power_settling = 1;
 	apr->powered = 1;
 
 	lineclk.c = apr->clkchan;
@@ -3526,16 +3538,26 @@ if(!apr->run){
 	updatebus(&apr->membus);
 
 
-	/* Key pulses */
-	if(apr->extpulse & EXT_KEY_MANUAL){
+	/* Do not let queued panel actions outrun the power-clear sequence. */
+	if(!apr->power_settling && apr->extpulse & EXT_KEY_MANUAL){
 		apr->extpulse &= ~EXT_KEY_MANUAL;
 		pulse(apr, &key_manual, 1);
 	}
-	if(apr->extpulse & EXT_KEY_INST_STOP){
+	if(!apr->power_settling && apr->extpulse & EXT_KEY_INST_STOP){
 		apr->extpulse &= ~EXT_KEY_INST_STOP;
 		apr->run = 0;
 		// hack: cleared when the pulse list was empty
 		apr->ia_inh = 1;
+	}
+	if(!apr->power_settling && apr->extpulse & EXT_KEY_READIN){
+		apr->extpulse &= ~EXT_KEY_READIN;
+		apr->remote_readin = 1;
+		pulse(apr, &key_manual, 1);
+	}
+	if(!apr->power_settling && apr->extpulse & EXT_KEY_START){
+		apr->extpulse &= ~EXT_KEY_START;
+		apr->remote_start = 1;
+		pulse(apr, &key_manual, 1);
 	}
 
 
@@ -3597,6 +3619,34 @@ if(!apr->run){
 	else
 		/* no longer needed */
 		apr->ia_inh = 0;
+}
+
+void
+apr_readin(Apr *apr)
+{
+	apr->extpulse |= EXT_KEY_READIN;
+}
+
+void
+apr_start_at(Apr *apr, hword addr)
+{
+	apr->remote_start_addr = addr & RT;
+	apr->extpulse |= EXT_KEY_START;
+}
+
+void
+apr_set_switches(Apr *apr, word switches)
+{
+	apr->remote_switches = switches & FW;
+	apr->remote_switches_valid = 1;
+}
+
+void
+apr_set_power(Apr *apr, int on)
+{
+	apr->remote_power = !!on;
+	apr->remote_power_valid = 1;
+	apr->sw_power = apr->remote_power;
 }
 
 void

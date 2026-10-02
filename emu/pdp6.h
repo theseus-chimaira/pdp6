@@ -334,6 +334,8 @@ struct TPulse
 enum Extpulse {
 	EXT_KEY_MANUAL       = 1,
 	EXT_KEY_INST_STOP    = 2,
+	EXT_KEY_READIN       = 4,
+	EXT_KEY_START        = 8,
 };
 
 /* everything that is read AND written at the same time */
@@ -355,6 +357,8 @@ struct Apr
 	hword ir;
 	word mi;
 	word data;
+	word remote_switches;
+	bool remote_switches_valid;
 	hword pc;
 	hword ma;
 	hword mas;
@@ -363,10 +367,15 @@ struct Apr
 	u8 pr, rlr, rla;
 	bool run;
 	bool sw_addr_stop, sw_repeat, sw_mem_disable, sw_power;
+	bool remote_power_valid, remote_power;
+	bool power_settling;
 	/* maint switches */
 	bool sw_rim_maint, sw_rpt_bypass, sw_art3_maint, sw_sct_maint, sw_spltcyc_override;
 	/* keys */
 	bool key_start, key_readin;
+	bool remote_readin;
+	bool remote_start;
+	hword remote_start_addr;
 	bool key_mem_cont, key_inst_cont;
 	bool key_mem_stop, key_inst_stop;
 	bool key_io_reset, key_exec;
@@ -460,6 +469,10 @@ struct Apr
 	TPulse *pfree;
 	TPulse *pulse;
 };
+void apr_readin(Apr *apr);
+void apr_start_at(Apr *apr, hword addr);
+void apr_set_switches(Apr *apr, word switches);
+void apr_set_power(Apr *apr, int on);
 #define APR_IDENT "apr166"
 extern char *apr_ident;
 Device *makeapr(int argc, char *argv[]);
