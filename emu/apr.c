@@ -2852,6 +2852,7 @@ if(loginst){
 		debug("%s\n", mnemonics[apr->inst]);
 	else
 		debug("%s\n", iomnemonics[apr->io_inst>>5 & 7]);
+	fflush(debugfp);
 }
 
 	if(PI_HOLD)
