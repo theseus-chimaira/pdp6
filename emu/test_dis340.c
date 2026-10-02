@@ -41,7 +41,7 @@ check_status_layout(void)
 	dis.hef = 1;
 	dis.stop = 1;
 	dis.br = 01000;
-	dis.rfd = 1;
+	dis.done = 1;
 	bus.devcode = DIS;
 	bus.c34 = IOBUS_IOB_STATUS;
 
@@ -50,6 +50,80 @@ check_status_layout(void)
 	if((bus.c12 & want) != want){
 		fprintf(stderr, "status layout: got %012lo want mask %012lo\n",
 		    bus.c12, want);
+		return 1;
+	}
+	return 0;
+}
+
+static int
+check_done_interrupt(void)
+{
+	Dis340 dis;
+	IOBus bus;
+
+	memset(&dis, 0, sizeof(dis));
+	memset(&bus, 0, sizeof(bus));
+	dis.bus = &bus;
+	dis.pia_data = 6;
+	dis.rfd = 1;
+
+	/* Idle RFD after reset is not a completed PDP-6 DATAO. */
+	recalc_dis_req(&dis);
+	if(bus.dev[DIS].req != 0){
+		fprintf(stderr, "idle RFD incorrectly raised DONE interrupt\n");
+		return 1;
+	}
+
+	/* Completing the second 18-bit half latches DONE and its request. */
+	dis.word_busy = 1;
+	dis.ibc = 0;
+	complete_data_word(&dis);
+	recalc_dis_req(&dis);
+	if(!dis.done || !dis.data_req || bus.dev[DIS].req == 0){
+		fprintf(stderr, "completed DATAO did not raise DONE interrupt\n");
+		return 1;
+	}
+
+	/* CONO acknowledges the request but DONE remains visible to CONI. */
+	bus.devcode = DIS;
+	bus.c12 = 6;
+	bus.c34 = IOBUS_CONO_CLEAR;
+	wake_dis(&dis);
+	if(dis.data_req || !dis.done || bus.dev[DIS].req != 0){
+		fprintf(stderr, "CONO did not acknowledge DONE correctly\n");
+		return 1;
+	}
+	return 0;
+}
+
+static int
+check_real_datao_completion(void)
+{
+	Dis340 dis;
+	IOBus bus;
+	static CRT crt;
+	int i;
+
+	memset(&dis, 0, sizeof(dis));
+	memset(&bus, 0, sizeof(bus));
+	memset(&crt, 0, sizeof(crt));
+	dis.bus = &bus;
+	dis.crt = &crt;
+	initiate(&dis);
+	dis.pia_data = 6;
+
+	/* First DAIMOS boot-banner word: two ordinary Type-340 half-words. */
+	bus.devcode = DIS;
+	bus.c12 = 020000020240UL;
+	bus.c34 = IOBUS_DATAO_CLEAR | IOBUS_DATAO_SET;
+	wake_dis(&dis);
+	for(i = 0; i < 32 && !dis.done; i++)
+		discycle(&dis);
+
+	if(!dis.done || dis.word_busy || dis.ibc != 0 || !dis.data_req){
+		fprintf(stderr,
+		    "real DATAO did not complete: done=%d busy=%d ibc=%d req=%d\n",
+		    dis.done, dis.word_busy, dis.ibc, dis.data_req);
 		return 1;
 	}
 	return 0;
@@ -182,6 +256,8 @@ main(void)
 
 	failed = 0;
 	failed |= check_status_layout();
+	failed |= check_done_interrupt();
+	failed |= check_real_datao_completion();
 	failed |= check_resume();
 	failed |= check_lightpen_latch();
 	failed |= check_no_ink();

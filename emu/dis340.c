@@ -136,6 +136,7 @@ struct Dis340
 	int pia_data;
 	int pia_spec;
 	word ib;	/* interface buffer */
+	word last_datao;	/* most recent raw PDP-6 DATAO word, for inspection */
 	int ibc;	/* number of words in IB */
 
 	/* 340 display and 342 char gen */
@@ -159,6 +160,9 @@ struct Dis340
 	int pen;
 	int no_ink;
 	int rfd;
+	int word_busy;	/* a Type-344 36-bit DATAO is still in flight */
+	int done;	/* both 18-bit halves of the last DATAO completed */
+	int data_req;	/* latched DONE interrupt request; CONO acknowledges it */
 	int hef, vef;
 	/* br shifted for IM and CM */
 	int pnts;
@@ -233,9 +237,28 @@ initiate(Dis340 *dis)
 	dis->lp_find = 0;
 	dis->lp_flag = 0;
 	dis->no_ink = 0;
+	dis->word_busy = 0;
+	dis->done = 0;
+	dis->data_req = 0;
 	dis->stop = 0;
 	escape(dis);
 	rfd(dis);
+}
+
+/*
+ * RFD means the 340 proper can accept another 18-bit instruction.  Type-344
+ * DONE is different: it is generated only after both halves of one PDP-6
+ * DATAO word have actually completed.  In particular, the idle/reset RFD
+ * state must not raise a data interrupt merely because software assigns a PIA.
+ */
+static void
+complete_data_word(Dis340 *dis)
+{
+	if(!dis->word_busy || !dis->rfd || dis->ibc != 0)
+		return;
+	dis->word_busy = 0;
+	dis->done = 1;
+	dis->data_req = 1;
 }
 
 static void
@@ -965,15 +988,13 @@ for(;;);
 static void
 recalc_dis_req(Dis340 *dis)
 {
-	int data, spec;
+	int spec;
 	u8 req_data, req_spec;
 
-// TODO: what about RFD?
-	data = dis->ibc == 0 && dis->rfd;
 	spec = dis->lp_flag ||
 		dis->hef || dis->vef ||
 		dis->stop && dis->br&01000;
-	req_data = data ? 0200 >> dis->pia_data : 0;
+	req_data = dis->data_req ? 0200 >> dis->pia_data : 0;
 	req_spec = spec ? 0200 >> dis->pia_spec : 0;
 
 	setreq2(dis->bus, DIS, req_data | req_spec);
@@ -991,6 +1012,7 @@ discycle(void *p)
 		intdelay(dis);
 	if(dis->cgstate)
 		cg_count(dis);
+	complete_data_word(dis);
 	recalc_dis_req(dis);
 }
 
@@ -1021,7 +1043,7 @@ wake_dis(void *dev)
 			if(dis->lp_flag) bus->c12 |= F25;
 			if(dis->hef) bus->c12 |= F26;
 			if(dis->stop && dis->br&01000) bus->c12 |= F27;
-			if(dis->ibc == 0 && dis->rfd) bus->c12 |= F28;
+			if(dis->done) bus->c12 |= F28;
 			bus->c12 |= (dis->pia_spec & 7) << 3;
 			bus->c12 |= dis->pia_data & 7;
 //printf("DIS STATUS %012lo\n", bus->c12);
@@ -1040,6 +1062,8 @@ wake_dis(void *dev)
 //printf("DIS CONO CLEAR\n");
 			dis->pia_data = 0;
 			dis->pia_spec = 0;
+			/* Type-344 CONO acknowledges a pending data interrupt. */
+			dis->data_req = 0;
 		}
 		if(IOB_CONO_SET){
 			dis->pia_data |= bus->c12 & 7;
@@ -1059,10 +1083,15 @@ wake_dis(void *dev)
 //printf("DIS DATAO CLEAR\n");
 			dis->ib = 0;
 			dis->ibc = 0;
+			dis->word_busy = 0;
+			dis->done = 0;
+			dis->data_req = 0;
 		}
 		if(IOB_DATAO_SET){
+			dis->last_datao = bus->c12 & FW;
 			dis->ib |= bus->c12;
 			dis->ibc = 2;
+			dis->word_busy = 1;
 //printf("DIS DATAO SET %012lo\n", bus->c12);
 		}
 	}
@@ -1078,12 +1107,35 @@ disioconnect(Device *dev, IOBus *bus)
 	bus->dev[DIS] = (Busdev){ dis, wake_dis, 0 };
 }
 
+static word
+ex_dis(Device *dev, const char *reg)
+{
+	Dis340 *dis;
+
+	dis = (Dis340*)dev;
+	if(strcmp(reg, "ibc") == 0) return dis->ibc;
+	if(strcmp(reg, "rfd") == 0) return dis->rfd;
+	if(strcmp(reg, "done") == 0) return dis->done;
+	if(strcmp(reg, "req") == 0) return dis->data_req;
+	if(strcmp(reg, "busy") == 0) return dis->word_busy;
+	if(strcmp(reg, "pia") == 0) return dis->pia_data;
+	if(strcmp(reg, "mode") == 0) return dis->mode;
+	if(strcmp(reg, "br") == 0) return dis->br;
+	if(strcmp(reg, "ib") == 0) return dis->ib;
+	if(strcmp(reg, "datao") == 0) return dis->last_datao;
+	if(strcmp(reg, "stop") == 0) return dis->stop;
+	if(strcmp(reg, "hef") == 0) return dis->hef;
+	if(strcmp(reg, "vef") == 0) return dis->vef;
+	if(strcmp(reg, "lp") == 0) return dis->lp_flag;
+	return ~0;
+}
+
 
 static Device disproto = {
 	nil, nil, "",
 	nil, nil,
 	disioconnect,
-	nil, nil
+	ex_dis, nil
 };
 
 Device*
