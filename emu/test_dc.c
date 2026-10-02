@@ -213,6 +213,32 @@ main()
 	assert(datai(bus, DC) == 0123456112233);
 	printdc(dc);
 
+	/*
+	 * Device 4 is the Type-551 DECtape connection.  Reverse tape motion
+	 * presents six-bit characters in reverse word order; the Type-136 must
+	 * assemble them right-to-left so the processor still receives the same
+	 * logical 36-bit word.
+	 */
+	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV4|7);
+	dcgv(dc, 4, 033, 1);
+	dcgv(dc, 4, 022, 1);
+	dcgv(dc, 4, 011, 1);
+	dcgv(dc, 4, 056, 1);
+	dcgv(dc, 4, 034, 1);
+	dcgv(dc, 4, 012, 1);
+	assert(pireq == 7);
+	assert(datai(bus, DC) == 0123456112233);
+
+	/* Reverse output is the inverse operation: low character first. */
+	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV4|7);
+	datao(bus, DC, 0123456112233);
+	assert(dctk(dc, 4, 1) == 033);
+	assert(dctk(dc, 4, 1) == 022);
+	assert(dctk(dc, 4, 1) == 011);
+	assert(dctk(dc, 4, 1) == 056);
+	assert(dctk(dc, 4, 1) == 034);
+	assert(dctk(dc, 4, 1) == 012);
+
 
 	printf("\n\n");
 

@@ -101,13 +101,11 @@ dcgv(Dc136 *dc, int n, word c, int rev)
 		return;
 	switch(dc->device){
 	case 1: case 2:
+	case 3: case 4:
 		if(rev)
 			dc->da = (dc->da >> 6 | (c&077)<<30) & FW;
 		else
 			dc->da = (dc->da << 6 | c&077) & FW;
-		break;
-	case 3: case 4:
-		dc->da = (dc->da << 6 | c&077) & FW;
 		break;
 	case 5: case 6:
 		dc->da |= c & FW;
@@ -130,6 +128,7 @@ dctk(Dc136 *dc, int n, int rev)
 		return 0;
 	switch(dc->device){
 	case 1: case 2:
+	case 3: case 4:
 		if(rev){
 			c = dc->da & 077;
 			dc->da = (dc->da >> 6) & FW;
@@ -137,10 +136,6 @@ dctk(Dc136 *dc, int n, int rev)
 			c = (dc->da >> 30) & 077;
 			dc->da = (dc->da << 6) & FW;
 		}
-		break;
-	case 3: case 4:
-		c = (dc->da >> 30) & 077;
-		dc->da = (dc->da << 6) & FW;
 		break;
 	case 5: case 6:
 		c = dc->da & FW;
