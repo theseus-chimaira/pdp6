@@ -202,7 +202,7 @@ fwdtest_w(void)
 
 	fillbuf(128);
 
-	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
+	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WBN|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
@@ -227,7 +227,7 @@ revtest_w(void)
 
 	fillbuf(128);
 
-	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
+	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|REV|DLY3|FN_WD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
@@ -250,7 +250,7 @@ fwdtest_r(void)
 	printf("forward test:\n\n");
 	dx->cur = dx->start;
 
-	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV1|7);
+	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_RD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
@@ -270,7 +270,7 @@ revtest_r(void)
 	printf("reverse test:\n\n");
 	dx->cur = dx->end-1;
 
-	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV1|7);
+	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|REV|DLY3|FN_RD|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
@@ -292,7 +292,7 @@ fmttest(void)
 
 	fillbuf_fmt();
 
-	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV1|7);
+	cono(bus, DC, DARQ|DBRQ|OUT|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|FWD|DLY3|FN_WTM|UNIT1|0);
 	while(dt->ut_go){
 		dttask.f(dt);
@@ -324,6 +324,9 @@ dxstore(Dx555 *dx, const char *file)
 int
 main()
 {
+	Dx555 *dx2;
+	int n;
+
 	dc = (Dc136*)makedc(0, nil);
 	dc->dev.ioconnect((Device*)dc, bus);
 	dt = (Dt551*)makedt(0, nil);
@@ -331,16 +334,54 @@ main()
 	dtconn(dc, dt);
 	dx = (Dx555*)makedx(0, nil);
 	dxconn(dt, dx, 1);
-	dx->dev.mount((Device*)dx, "../test/out.dt6");
+	dx2 = (Dx555*)makedx(0, nil);
+	dxconn(dt, dx2, 2);
 
 	bus_reset(bus);
 	assert(coni(bus, DC) == 0);
+	dt->ut_btm_switch = 1;
+	fmttest();
+	dt->ut_btm_switch = 0;
+	memcpy(dx2->start, dx->start, dx->size);
+	dx2->size = dx->size;
+	dx->cur = dx->start;
+	dx2->cur = dx2->start;
+	dx2->end = dx2->start + dx2->size;
+	bus_reset(bus);
 
-	/* Transport label 2 is not connected: the 551 must fail selection
-	 * immediately instead of leaving GO set forever. */
+	/*
+	 * DAIMOS root discovery probes transports in sequence while deliberately
+	 * keeping DECtape motion alive between successful block operations.
+	 * Complete one block-number read on unit 0, leave GO asserted in DN mode,
+	 * then select unit 1.  Mark/check timing belongs to the physical transport;
+	 * the controller must reacquire it when selection changes even though the
+	 * simplified emulator-wide GO state never fell to zero.
+	 */
+	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV4|7);
+	cono(bus, UTC, SEL|GO|FWD|FN_RBN|UNIT1);
+	for(n = 0; n < 200000 && !dt->ut_jb_done_flag &&
+	    !dt->ut_illegal_op && !dt->ut_info_error; ++n)
+		dttask.f(dt);
+	assert(dt->ut_jb_done_flag);
+	assert(!dt->ut_illegal_op);
+	assert(!dt->ut_info_error);
+	cono(bus, UTC, SEL|GO|FWD|FN_DN|UNIT1);
+	cono(bus, DC, 0);
+
+	cono(bus, DC, DBDAMOVE|IN|CHMOD_6|DEV4|7);
 	cono(bus, UTC, SEL|GO|FWD|FN_RBN|UNIT2);
-	assert(coni(bus, UTS) & F33);
-	assert(dt->ut_go == 0);
+	for(n = 0; n < 200000 && !dt->ut_jb_done_flag &&
+	    !dt->ut_illegal_op && !dt->ut_info_error; ++n)
+		dttask.f(dt);
+	if(!dt->ut_jb_done_flag)
+		fprintf(stderr,
+		    "unit2 RBN timeout: n=%d pos=%ld go=%d rw=%d tmk=%03o tbm=%03o rwb=%03o\n",
+		    n, (long)(dx2->cur-dx2->start), dt->ut_go, dt->rw_state,
+		    dt->tmk, dt->tbm, dt->rwb);
+	assert(dt->seldx == dx2);
+	assert(!dt->ut_illegal_op);
+	assert(!dt->ut_info_error);
+	assert(dt->ut_jb_done_flag);
 	bus_reset(bus);
 
 	printdc(dc);

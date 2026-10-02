@@ -7,8 +7,14 @@ char *dx_ident = DX_IDENT;
 
 // TODO: currently only selected drive will move, this is wrong
 
-// TODO: find out how this should be controlled
-#define DEVNO 1
+/*
+ * The PDP-6 Type-551 is wired to Type-136 peripheral slot 4.
+ *
+ * This is the low three-bit peripheral selector of the Type-136, not the
+ * DECtape transport number.  Historical PDP-6 software selects the 551 with
+ * DCT CONO ...040; SIMH likewise configures DTC as DCT=04.
+ */
+#define DEVNO 4
 
 enum
 {
@@ -329,6 +335,23 @@ char state = 'n';
 
 static int selectdx(Dt551 *dt);
 
+/*
+ * T CLEAR: discard mark/data timing inherited from a previous stretch of
+ * tape motion.  A stopped transport has no meaningful phase relationship to
+ * the next transport that starts, so stale UTE/check state must not survive a
+ * new GO edge.  Timed starts use the same hardware clear.
+ */
+static void
+dt_tclear(Dt551 *dt)
+{
+	dt->tmk = 0;
+	dt->rwb = 0;
+	dt->tbm = 0;
+	dt->tdata = 0;
+	dt->utek = 0;
+	dt->uteck = 0;
+}
+
 /* This is a function for debugging purposes */
 static void
 setstat(Dt551 *dt, int state)
@@ -348,6 +371,14 @@ dtsetgo(Dt551 *dt, int go)
 			printf("DECtape stopped\n\n\n");
 	}
 */
+	/*
+	 * Starting from rest reacquires mark-track timing.  Without this T CLEAR,
+	 * a UTE/check phase left by one transport can immediately raise INFO ERROR
+	 * when software stops it and selects another transport.
+	 */
+	if(go && !dt->ut_go)
+		dt_tclear(dt);
+
 	// little hack: stop tape motion here. motion is set in dxmove
 	// i hope selectdx is safe?
 	if(!go && selectdx(dt) == 1)
@@ -518,8 +549,15 @@ debug("TRACK ERROR\n");
 	}
 
 	/* Stop activity once job gets done */
-	if(!prev.ut_jb_done_flag && dt->ut_jb_done_flag)	// 3-8
+	if(!prev.ut_jb_done_flag && dt->ut_jb_done_flag){	// 3-8
+		if(dtdbg && UT_BM)
+			fprintf(stderr,
+			    "RBN done unit=%d pos=%ld da=%012lo db=%012lo cct=%d\n",
+			    dt->seldx ? dt->seldx->unit : -1,
+			    dt->seldx ? (long)(dt->seldx->cur - dt->seldx->start) : -1L,
+			    dt->dc->da, dt->dc->db, dt->dc->cct);
 		setstat(dt, RW_NULL);
+	}
 }
 
 static void
@@ -689,12 +727,7 @@ wake_dt(void *dev)
 		dt->ut_illegal_op = 0;
 		dt->ut_info_error = 0;
 
-		dt->tmk = 0;
-		dt->rwb = 0;
-		dt->tbm = 0;
-		dt->tdata = 0;
-		dt->utek = 0;
-		dt->uteck = 0;
+		dt_tclear(dt);
 
 		dt->rw_state = RW_NULL;
 	}
@@ -744,7 +777,9 @@ dbg("UTC CONO CLEAR\n");
 		}
 		if(IOB_CONO_SET){
 			int nunits;
+			Dx555 *oldsel;
 
+			oldsel = dt->seldx;
 			dtsetgo(dt, bus->c12>>13 & 1);	// have to do this before deselection
 			dt->ut_pia = bus->c12 & 07;
 			dt->ut_units = bus->c12>>3 & 07;
@@ -767,6 +802,16 @@ dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 			/* update selection, also done after delay */
 			nunits = selectdx(dt);
 			/*
+			 * Oldemu keeps mark/data timing in the controller rather than in
+			 * each Type-555 transport.  If software changes unit while GO stays
+			 * asserted (the normal DAIMOS sequential-probe path), the new tape
+			 * has an unrelated mark-track phase.  Reacquire timing exactly as
+			 * for a fresh GO edge instead of carrying UTE/check state across
+			 * physical transports.
+			 */
+			if(dt->ut_go && oldsel != dt->seldx)
+				dt_tclear(dt);
+			/*
 			 * Selecting an unattached/nonexistent transport is an immediate
 			 * controller error.  Leaving GO set here makes software wait for
 			 * tape motion that can never occur.
@@ -785,12 +830,7 @@ dbg("SEL/%o GO/%o REV/%o TIME/%o FCN/%o\n", dt->ut_units_select,
 				 * a delay is needed.
 				 * Ideally we simulate those circumstances
 				 * better, but for now clear it here. */
-				dt->tmk = 0;
-				dt->rwb = 0;
-				dt->tbm = 0;
-				dt->tdata = 0;
-				dt->utek = 0;
-				dt->uteck = 0;
+				dt_tclear(dt);
 
 				switch(dt->ut_time){
 				case 1:	// 20ms
