@@ -95,9 +95,9 @@ cscopeinit(void)
 
 #define CONO_BLUE    000000020  /* Color scope blue enable */
 #define CONO_SPCWAR  000000040  /* Spacewar consoles */
-#define CONO_GREEN   000020000  /* Color scope green enable */
+#define CONO_GREEN   000002000  /* Color scope green enable */
 #define CONO_RANDOM  000040000  /* Random switches */
-#define CONO_RED     020000000  /* Color scope red enable */
+#define CONO_RED     000200000  /* Color scope red enable */
 #define CONO_KNIGHT  040000000  /* Switches in TK's office */
 
 static word cono_bits = 0;
