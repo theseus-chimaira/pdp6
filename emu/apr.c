@@ -31,6 +31,24 @@ apr_timing_milestone_v1(Apr *apr, const char *name)
                 (unsigned)apr->pc, (unsigned)apr->inst);
 }
 
+/* Event-level exception/PI evidence for AAP profile exclusion.
+ * Captured at the state-setting pulse, not a later console snapshot.
+ * The pulse queue timestamp is logical, not elapsed nanoseconds.
+ */
+static void
+apr_class_event_v1(Apr *apr, const char *name)
+{
+    static int enabled = -1;
+    if(enabled < 0){
+        const char *value = getenv("PDP6_AAP_CLASS_TRACE_V1");
+        enabled = value != nil && strcmp(value, "1") == 0;
+    }
+    if(enabled)
+        fprintf(stderr, "AAP_CLASS_EVENT_V1 type=%s tick=%" PRIu64
+                " pc=%06o\n", name, apr->pulse_time_v1,
+                (unsigned)apr->pc);
+}
+
 enum Opcode {
 	FSC    = 0132,
 	IBP    = 0133,
@@ -559,6 +577,7 @@ void
 set_pi_cyc(Apr *apr, bool value)
 {
 	apr->pi_cyc = value;
+	if(value) apr_class_event_v1(apr, "PI_CYCLE");
 	if(apr->pi_cyc)
 		apr->ex_pi_sync = 1;	// 5-13
 }
@@ -2625,6 +2644,7 @@ defpulse_(et10)
 	}
 	if(apr->ir_jp && !(apr->ir & H6) && apr->ar_cry0){
 		apr->cpa_pdl_ov = 1;			// 8-5
+		apr_class_event_v1(apr, "PDLOV");
 		recalc_cpa_req(apr);
 	}
 	if(apr->inst == JFCL)
@@ -3243,6 +3263,7 @@ defpulse(mc_non_exist_mem_rst)
 defpulse(mc_non_exist_mem)
 {
 	apr->cpa_non_exist_mem = 1;			// 8-5
+	apr_class_event_v1(apr, "NXM");
 	recalc_cpa_req(apr);
 	if(!apr->sw_mem_disable)
 		pulse(apr, &mc_non_exist_mem_rst, 0);	// 7-9
@@ -3257,6 +3278,7 @@ defpulse(mc_error_dly)
 defpulse(mc_illeg_address)
 {
 	apr->cpa_illeg_op = 1;				// 8-5
+	apr_class_event_v1(apr, "ILLOP");
 	recalc_cpa_req(apr);
 	pulse(apr, &st7, 100);				// 5-6
 }
