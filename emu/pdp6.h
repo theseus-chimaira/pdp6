@@ -348,6 +348,8 @@ struct AprState
 
 struct Apr
 {
+	/* Logical pulse-delay sum; uncalibrated and not host elapsed time. */
+	uint64_t pulse_time_v1;
 	Device dev;
 	IOBus iobus;
 	Membus membus;

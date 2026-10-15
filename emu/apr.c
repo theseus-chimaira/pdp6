@@ -65,6 +65,7 @@ enum Opcode {
 	declpulse(p); \
 	defpulse_(p)
 
+#include "apr_pulse_clock_v1.h"
 static void aprcycle(void *p);
 static void wake_cpa(void *dev);
 static void wake_pi(void *dev);
@@ -168,6 +169,8 @@ stepone(Apr *apr)
 
 	p = apr->pulse;
 	if(p == nil) return 0;
+	if(apr_pulse_clock_advance_v1(&apr->pulse_time_v1, p->t) != 0)
+		err("APR pulse logical time overflow/negative delay");
 	apr->pulse = p->next;
 	trace("pulse %s\n", p->p->n);
 	p->p->f(apr);
