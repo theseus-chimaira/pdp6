@@ -769,6 +769,21 @@ c_aprflags(int argc, char *argv[])
 	fflush(stdout);
 }
 
+/* Snapshot architectural exceptional-state latches at a console
+ * command boundary. Report facts, not a guessed instruction outcome. */
+static void
+c_aprclass(int argc, char *argv[])
+{
+	Apr *a = getapr();
+	(void)argc;
+	(void)argv;
+	printf("APR_CLASS_V1 NXM=%d ILLOP=%d PDLOV=%d PI_ACTIVE=%d PI_REQ=%03o PI_CYC=%d\n",
+	       !!a->cpa_non_exist_mem, !!a->cpa_illeg_op,
+	       !!a->cpa_pdl_ov, !!a->pi_active,
+	       a->pi_req, !!a->pi_cyc);
+	fflush(stdout);
+}
+
 static void
 c_switches(int argc, char *argv[])
 {
@@ -870,6 +885,8 @@ struct {
 		"report APR_STATUS_V1 START_PENDING, RUNNING, or HALTED" },
 	{ "aprflags", c_aprflags,
 		"report APR_FLAGS_V1 arithmetic and PC-change flip-flops" },
+	{ "aprclass", c_aprclass,
+		"report APR_CLASS_V1 memory fault, illegal-op and PI latches" },
 	{ "switches", c_switches,
 		"set the automated PDP-6 console switch word" },
 	{ "power", c_power,
