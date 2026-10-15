@@ -1925,6 +1925,17 @@ defpulse(dst0a)
 
 defpulse(dst0)
 {
+	/* The signed 36-bit IDIV quotient cannot represent +2^35.
+	 * The only overflowing nonzero-divisor IDIV operand pair is
+	 * -2^35 / -1. Test it before complementing the dividend, while
+	 * AR and MB still hold the original two's-complement operands.
+	 * Use the existing divide-overflow pulse; do not emit a wrapped
+	 * quotient or treat normal termination as successful division. */
+	if(apr->c.ar == 0400000000000ULL &&
+	   apr->c.mb == 0777777777777ULL){
+		pulse(apr, &dst13, 0);
+		return;
+	}
 	apr->dsf7 = 1;			// 6-25
 	apr->dsf1 = 1;			// 6-25
 	pulse(apr, &cfac_ar_negate, 0);	// 6-17
