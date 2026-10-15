@@ -1,5 +1,6 @@
 #include "pdp6.h"
 #include <unistd.h>
+#include <inttypes.h>
 
 // Schematics don't have USER IOT implemented fully
 #define FIX_USER_IOT
@@ -12,6 +13,23 @@
 #define FIX_MEMSTOP
 
 int loginst;
+
+/* Diagnostic milestones, not validated instruction-duration endpoints.
+ * Logical units come from the relative pulse queue; they are not ns.
+ */
+static void
+apr_timing_milestone_v1(Apr *apr, const char *name)
+{
+    static int enabled = -1;
+    if(enabled < 0){
+        const char *value = getenv("PDP6_AAP_TIMING_TRACE_V1");
+        enabled = value != nil && strcmp(value, "1") == 0;
+    }
+    if(enabled)
+        fprintf(stderr, "AAP_TIMING_V1 %s tick=%" PRIu64
+                " pc=%06o inst=%03o\n", name, apr->pulse_time_v1,
+                (unsigned)apr->pc, (unsigned)apr->inst);
+}
 
 enum Opcode {
 	FSC    = 0132,
@@ -2849,6 +2867,7 @@ defpulse(et0)
 
 defpulse(et0a)
 {
+apr_timing_milestone_v1(apr, "ET0A");
 if(loginst){
 	debug("%06o: ", apr->inst_ma);
 	if((apr->inst & 0700) != 0700)
@@ -3110,6 +3129,7 @@ defpulse_(iat0)
 
 defpulse_(it0)
 {
+	apr_timing_milestone_v1(apr, "IT0");
 	apr->ma = 0;			// 7-3
 	// have to call directly because IF1A is set with a delay
 	mr_clr_p(apr);			// 5-2
