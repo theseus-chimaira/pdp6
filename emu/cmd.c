@@ -755,6 +755,20 @@ c_cpustatus(int argc, char *argv[])
 	fflush(stdout);
 }
 
+/* Read-only APR arithmetic diagnostic. The command dispatcher runs on
+ * the simulation thread, so flag values form a coherent snapshot. */
+static void
+c_aprflags(int argc, char *argv[])
+{
+	Apr *a = getapr();
+	(void)argc;
+	(void)argv;
+	printf("APR_FLAGS_V1 OV=%d CRY0=%d CRY1=%d PCCHG=%d\n",
+	       !!a->ar_ov_flag, !!a->ar_cry0_flag,
+	       !!a->ar_cry1_flag, !!a->ar_pc_chg_flag);
+	fflush(stdout);
+}
+
 static void
 c_switches(int argc, char *argv[])
 {
@@ -854,6 +868,8 @@ struct {
 		"press START with an automated address: start address" },
 	{ "cpustatus", c_cpustatus,
 		"report APR_STATUS_V1 START_PENDING, RUNNING, or HALTED" },
+	{ "aprflags", c_aprflags,
+		"report APR_FLAGS_V1 arithmetic and PC-change flip-flops" },
 	{ "switches", c_switches,
 		"set the automated PDP-6 console switch word" },
 	{ "power", c_power,
