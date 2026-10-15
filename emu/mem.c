@@ -250,7 +250,10 @@ wakemem(Membus *bus)
 	int nxm;
 
 	if(bus->c12 & MEMBUS_MA_FMC_SEL1){
-		nxm = bus->fmem->wake(bus->fmem, 0, bus);
+		/* Fast memory is optional. With no module attached, let the
+		 * ordinary core-memory selection handle the request instead
+		 * of dereferencing a nonexistent fast-memory device. */
+		nxm = bus->fmem ? bus->fmem->wake(bus->fmem, 0, bus) : 1;
 		if(nxm)
 			goto core;
 	}else{
