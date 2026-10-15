@@ -734,6 +734,27 @@ c_start(int argc, char *argv[])
 	apr_start_at(getapr(), (hword)addr);
 }
 
+/* The command thread dispatches commands in the simulation thread.
+ * Inspect RUN there, never by unsynchronized polling in the CLI thread.
+ * A queued START must not be mistaken for a completed HALT. */
+static void
+c_cpustatus(int argc, char *argv[])
+{
+	Apr *a = getapr();
+	const char *state;
+	(void)argc;
+	(void)argv;
+	if(a->run)
+		state = "RUNNING";
+	else if(a->remote_start || a->key_start ||
+	        (a->extpulse & EXT_KEY_START))
+		state = "START_PENDING";
+	else
+		state = "HALTED";
+	printf("APR_STATUS_V1 %s\n", state);
+	fflush(stdout);
+}
+
 static void
 c_switches(int argc, char *argv[])
 {
@@ -831,6 +852,8 @@ struct {
 		"press the PDP-6 READ IN key" },
 	{ "start", c_start,
 		"press START with an automated address: start address" },
+	{ "cpustatus", c_cpustatus,
+		"report APR_STATUS_V1 START_PENDING, RUNNING, or HALTED" },
 	{ "switches", c_switches,
 		"set the automated PDP-6 console switch word" },
 	{ "power", c_power,
