@@ -299,6 +299,7 @@ static Device ptrproto = {
 Device*
 makeptp(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Ptp *ptp;
 	Task t;
 

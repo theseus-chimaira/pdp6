@@ -140,7 +140,7 @@ again:
 void
 writewits(word w, FILE *fp)
 {
-	if(w == ~0){
+	if(w == (word)~0){
 		flush(fp);
 		return;
 	}

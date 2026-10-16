@@ -19,6 +19,10 @@ pdp6_s: main_serial.c $(SRC) $(H)
 pdp6_n: main_net.c $(SRC) $(H)
 	$(CC) -o $@ $(CFLAGS) main_net.c $(SRC) $(LIBS)
 
+# No SDL, graphics, serial console, or network panel is linked.
+pdp6_headless_v1: main_headless_v1.c $(SRC) $(H)
+	$(CC) -o $@ $(CFLAGS) main_headless_v1.c $(SRC) $(LIBS)
+
 test_dc: test_dc.c dc.c $(H)
 	$(CC) -o $@ $(CFLAGS) test_dc.c dc.c
 

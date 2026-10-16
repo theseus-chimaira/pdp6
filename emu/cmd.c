@@ -157,7 +157,7 @@ parserange(char *s, word *start, word *end)
 	*start = *end = ~0;
 
 	*start = parsen(&s);
-	if(*start == ~0) return 1;
+	if(*start == (word)~0) return 1;
 
 	if(*s == '\0'){
 		*end = *start;
@@ -165,7 +165,7 @@ parserange(char *s, word *start, word *end)
 	}else if(*s == '-' || *s == ':'){
 		s++;
 		*end = parsen(&s);
-		if(*end == ~0) return 1;
+		if(*end == (word)~0) return 1;
 	}
 	if(*s){
 		*start = *end = ~0;
@@ -451,7 +451,7 @@ c_dep(int argc, char *argv[])
 	if(parserange(argv[0], &start, &end))
 		return;
 	w = parsen(&argv[1]);
-	if(w == ~0)
+	if(w == (word)~0)
 		return;
 	for(; start <= end; start++)
 		dep(start, fastmem, w);
@@ -493,7 +493,7 @@ c_xex(int argc, char *argv[])
 		if(dev->examine){
 			strtolower(argv[i]);
 			w = dev->examine(dev, argv[i]);
-			if(w == ~0)
+			if(w == (word)~0)
 				printf("can't examine %s\n", argv[i]);
 			else
 				printf("%012lo\n", w);
@@ -513,7 +513,7 @@ c_xdep(int argc, char *argv[])
 		return;
 
 	w = parsen(&argv[argc-1]);
-	if(w == ~0)
+	if(w == (word)~0)
 		return;
 
 	for(i = 1; i < argc-1; i++){
@@ -543,7 +543,7 @@ loadsav(FILE *fp)
 {
 	word iowd;
 	word w;
-	while(w = readwbak(fp), w != ~0){
+	while(w = readwbak(fp), w != (word)~0){
 		if(w >> 27 == 0254){
 			getapr()->pc = right(w);
 			return;
@@ -552,7 +552,7 @@ loadsav(FILE *fp)
 		while(left(iowd) != 0){
 			iowd += 01000001;
 			w = readwbak(fp);
-			if(w == ~0)
+			if(w == (word)~0)
 				goto format;
 			dep(right(iowd), 0, w);
 		}
@@ -568,13 +568,13 @@ loadsblk(FILE *fp)
 	int d;
 
 	/* Skip RIM loader */
-	while(w = readwits(fp), w != ~0)
+	while(w = readwits(fp), w != (word)~0)
 		if(w == 0254000000001)
 			goto sblk;
 	goto format;
 sblk:
 	/* Read a simple block */
-	while(w = readwits(fp), w != ~0){
+	while(w = readwits(fp), w != (word)~0){
 		/* We expect an AOBJN word here */
 		if((w & F0) == 0)
 			goto end;
@@ -583,7 +583,7 @@ sblk:
 		d = right(iowd) != 0;	/* 0 is symbol table */
 		while(left(iowd) != 0){
 			w = readwits(fp);
-			if(w == ~0)
+			if(w == (word)~0)
 				goto format;
 
 			chk = (chk<<1 | chk>>35) + w & FW;
@@ -630,7 +630,7 @@ loadrim10(FILE *fp)
 		goto format;
 
 	/* Read a simple block */
-	while(w = readw(fp), w != ~0){
+	while(w = readw(fp), w != (word)~0){
 		/* We expect an AOBJN word here */
 		if((w & F0) == 0)
 			goto end;
@@ -638,7 +638,7 @@ loadrim10(FILE *fp)
 		chk = iowd;
 		while(left(iowd) != 0){
 			w = readw(fp);
-			if(w == ~0)
+			if(w == (word)~0)
 				goto format;
 
 			if(mac){
@@ -703,6 +703,7 @@ c_load(int argc, char *argv[])
 static void
 c_show(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	printf("Devices:\n");
 	showdevices();
 	printf("Memory:\n");
@@ -727,7 +728,7 @@ c_start(int argc, char *argv[])
 		return;
 	}
 	addr = parsen(&argv[1]);
-	if(addr == ~0 || addr > RT){
+	if(addr == (word)~0 || addr > RT){
 		printf("Invalid start address\n");
 		return;
 	}
@@ -794,7 +795,7 @@ c_switches(int argc, char *argv[])
 		return;
 	}
 	switches = parsen(&argv[1]);
-	if(switches == ~0)
+	if(switches == (word)~0)
 		return;
 	apr_set_switches(getapr(), switches);
 }
@@ -843,6 +844,7 @@ c_ptrmotor(int argc, char *argv[])
 static void
 c_quit(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	quit(0);
 }
 
@@ -897,12 +899,13 @@ struct {
 		"quit emulator" },
 	{ "help", c_help,
 		"print help" },
-	{ nil, nil}
+	{ nil, nil, nil }
 };
 
 static void
 c_help(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	int i;
 
 	for(i = 0; cmdtab[i].cmd; i++)

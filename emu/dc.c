@@ -234,6 +234,7 @@ dcioconnect(Device *dev, IOBus *bus)
 Device*
 makedc(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Dc136 *dc;
 
 	dc = malloc(sizeof(Dc136));

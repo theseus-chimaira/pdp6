@@ -7,13 +7,14 @@
 
 
 // TODO: get rid of this
-void updatepanel(Apr *apr) {}
+void updatepanel(Apr *apr) { (void)apr; }
 void writeconsreg(Apr *apr, u32 addr, u32 data)
-{ // stub
+{ (void)addr; (void)apr; (void)data;  // stub
 }
 u32
 readconsreg(Apr *apr, u32 addr)
 {
+	(void)addr; (void)apr;
 	// stub
 	return 0;
 }
@@ -36,7 +37,8 @@ talkserial(int fd, Apr *apr, Ptr *ptr)
 	}
 
 	/* Synch to CR */
-	while(readn(fd, &c, 1) == 0, c != 015);
+	while(readn(fd, &c, 1) == 0 && c != 015)
+		;
 
 	sw = 0;
 	while(1){

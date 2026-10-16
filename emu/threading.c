@@ -197,13 +197,6 @@ threaddata(void)
 }
 
 void
-threadkill(int id)
-{
-	assert(id >= 0 && id < numthreads);
-	pthread_cancel(gethandle(id));
-}
-
-void
 threadwait(int id)
 {
 	pthread_join(gethandle(id), nil);

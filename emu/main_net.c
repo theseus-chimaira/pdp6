@@ -8,13 +8,14 @@
 
 
 // TODO: get rid of this
-void updatepanel(Apr *apr) {}
+void updatepanel(Apr *apr) { (void)apr; }
 void writeconsreg(Apr *apr, u32 addr, u32 data)
-{ // stub
+{ (void)addr; (void)apr; (void)data;  // stub
 }
 u32
 readconsreg(Apr *apr, u32 addr)
 {
+	(void)addr; (void)apr;
 	// stub
 	return 0;
 }
@@ -38,7 +39,7 @@ talknetwork(int fd, void *foo)
 	Ptr *ptr;
 	Dx555 **dx;
 	Apr oldapr;
-	char c, buf[32];
+	char buf[32];
 	int n, sw;
 
 	apr = ((struct Foo*)foo)->apr;
@@ -252,7 +253,7 @@ talknetwork(int fd, void *foo)
 void
 usage(void)
 {
-	fprintf(stderr, "usage: %s [-t] [-d debugfile] [-p paneltty]\n", argv0);
+	fprintf(stderr, "usage: %s [-t] [-d debugfile]\n", argv0);
 	exit(1);
 }
 
@@ -260,8 +261,6 @@ int
 threadmain(int argc, char *argv[])
 {
 	const char *outfile;
-	const char *panelfile;
-	int fd;
 	Channel *cmdchans[2];
 	Task t;
 
@@ -269,16 +268,12 @@ threadmain(int argc, char *argv[])
 	Ptr *ptr;
 
 	outfile = "/dev/null";
-	panelfile = nil;
 	ARGBEGIN{
 	case 't':
 		dotrace = 1;
 		break;
 	case 'd':
 		outfile = EARGF(usage());
-		break;
-	case 'p':
-		panelfile = EARGF(usage());
 		break;
 	default:
 		usage();
@@ -307,7 +302,7 @@ threadmain(int argc, char *argv[])
 	threadcreate(cmdthread, cmdchans);
 	threadcreate(rtcthread, nil);
 
-	struct Foo foo = { apr, ptr};
+	struct Foo foo = { apr, ptr, { nil, nil, nil, nil } };
 	foo.dt[0] = (Dx555*)getdevice("dx1");
 	foo.dt[1] = (Dx555*)getdevice("dx2");
 	foo.dt[2] = nil;

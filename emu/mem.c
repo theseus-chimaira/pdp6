@@ -183,6 +183,7 @@ powercore(Mem *mem)
 static int
 wakeff(Mem *mem, int sel, Membus *bus)
 {
+	(void)sel;
 	FMem *ff;
 	hword fma;
 	bool fma_rd_rq, fma_wr_rq;

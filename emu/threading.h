@@ -56,6 +56,5 @@ int threadcreate(void *(*f)(void*), void *arg);
 void threadexits(void *ret);
 int threadid(void);
 void **threaddata(void);
-void threadkill(int id);
 void threadwait(int id);
 void threadname(char *name);

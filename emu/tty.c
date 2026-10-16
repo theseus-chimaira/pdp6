@@ -133,6 +133,7 @@ ttyioconnect(Device *dev, IOBus *bus)
 Device*
 maketty(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Tty *tty;
 	Task t;
 

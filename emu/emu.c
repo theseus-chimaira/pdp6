@@ -54,6 +54,7 @@ addtask(Task t)
 void*
 simthread(void *p)
 {
+	(void)p;
 	Task *t;
 
 	threadname("sim");

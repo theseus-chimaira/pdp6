@@ -104,6 +104,7 @@ rtcstop(Channel *c)
 void*
 rtcthread(void *p)
 {
+	(void)p;
 	struct timespec now;
 	Clockchan *cc;
 	RtcMsg msg;

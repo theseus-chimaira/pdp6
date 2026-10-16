@@ -161,35 +161,6 @@ rempulse(Apr *apr, Pulse *p)
 }
 
 static void
-pprint(Apr *apr)
-{
-	int t;
-	TPulse *p;
-
-	t = 0;
-	for(p = apr->pulse; p; p = p->next){
-		t += p->t;
-		trace("%s %d %d\n", p->p->n, p->t, t);
-	}
-}
-
-static void
-tracechange(Apr *apr)
-{
-	static char buf[256], *p;
-
-	p = buf;
-	if(apr->c.ar != apr->n.ar)
-		p += sprintf(p, " AR/%012lo", apr->n.ar);
-	if(apr->c.mb != apr->n.mb)
-		p += sprintf(p, " MB/%012lo", apr->n.mb);
-	if(apr->c.mq != apr->n.mq)
-		p += sprintf(p, " MQ/%012lo", apr->n.mq);
-	if(p != buf)
-		trace("%s\n", buf);
-}
-
-static void
 tracestate(Apr *apr)
 {
 	trace("AR/%012lo MQ/%012lo.%d MB/%012lo MA/%06o SC/%03o FE/%03o\n",
@@ -284,6 +255,7 @@ static Device aprproto = {
 Device*
 makeapr(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Apr *apr;
 	Task t;
 

@@ -169,6 +169,7 @@ static Device dxproto = {
 Device*
 makedx(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Dx555 *dx;
 
 	dx = malloc(sizeof(Dx555));
@@ -1002,6 +1003,7 @@ static Device dtproto = {
 Device*
 makedt(int argc, char *argv[])
 {
+	(void)argc; (void)argv;
 	Dt551 *dt;
 	Task t;
 
