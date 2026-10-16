@@ -2743,6 +2743,17 @@ defpulse_(et4)
 defpulse(et3)
 {
 	if(apr->ex_ir_uuo){
+		/* Optional evidence at the UUO trap, before the guest overwrites
+		 * low core 040 or an interrupt changes the processor context. */
+		if((apr->ir & 0777740) == 0 &&
+		   getenv("PDP6_AAP_UUO_TRACE_V1") != nil)
+			fprintf(stderr, "AAP_UUO_ZERO_V1 tick=%" PRIu64
+			    " pc=%06o inst_ma=%06o ma=%06o ir=%06o"
+			    " ex_user=%d ex_mode_sync=%d\n",
+			    apr->pulse_time_v1, (unsigned)apr->pc,
+			    (unsigned)apr->inst_ma, (unsigned)apr->ma,
+			    (unsigned)apr->ir, apr->ex_user,
+			    apr->ex_mode_sync);
 		// MBLT <- IR(1) (UUO T0) on 6-3
 		apr->n.mb |= ((word)apr->ir&0777740) << 18;	// 6-1
 		apr->ma |= F30;				// 7-3

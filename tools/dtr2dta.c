@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #define nil NULL
 typedef unsigned char uchar;
@@ -58,7 +59,7 @@ readf(uchar **dtp, uchar *mark, word *wrd)
 	for(i = 0; i < 6; i++){
 		l = *(*dtp)++;
 		m = (m << 1) | !!(l&010);
-		w = (w << 3) | l&7;
+		w = (w << 3) | (l & 7);
 	}
 	*mark = m;
 	*wrd = w;
@@ -154,7 +155,7 @@ rawdump(uchar *dtp)
 	end = dtp + DTSIZE;
 	while(dtp < end){
 		readf(&dtp, &mark, &w);
-		printf("%02o[%-13s] %06o\n", mark, tostr(mark), w);
+		printf("%02o[%-13s] %06" PRIo64 "\n", mark, tostr(mark), w);
 	}
 }
 
@@ -399,7 +400,7 @@ readdta(FILE *f)
 	int n;
 
 	n = 0;
-	while(w = readsimh(f), w != ~0 && n < NUMBLOCKS*0200)
+	while(w = readsimh(f), w != (word)~0 && n < NUMBLOCKS*0200)
 		blockbuf[n++] = w;
 	return n != NUMBLOCKS*0200;
 }
@@ -426,6 +427,7 @@ dta2dtr(void)
 int
 main(int argc, char *argv[])
 {
+	(void)argc;
 
 	if(strstr(argv[0], "dtr2dta")) return dtr2dta();
 	else if(strstr(argv[0], "dta2dtr")) return dta2dtr();

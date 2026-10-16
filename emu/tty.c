@@ -20,9 +20,15 @@ ttycycle(void *p)
 	uchar c;
 
 	tty = p;
-	if(tty->fd >= 0 && hasinput(tty->fd)){
+	/* Do not overwrite a character that the guest has not acknowledged.
+	 * PTYs may queue several bytes while the simulated PDP-6 handles one. */
+	if(tty->fd >= 0 && !tty->tti_flag && !tty->tti_busy &&
+	   hasinput(tty->fd)){
 		tty->tti_busy = 1;
 		n = read(tty->fd, &c, 1);
+		if(n == 1 && getenv("PDP6_AAP_TTY_TRACE_V1") != nil)
+			fprintf(stderr, "AAP_TTY_IN_V1 byte=%03o flag_before=%d\n",
+			    c, tty->tti_flag);
 		tty->tti = c|0200;
 		tty->tti_busy = 0;
 		if(n < 0)
@@ -58,6 +64,9 @@ wake_tty(void *dev)
 			bus->c12 |= tty->pia & 7;
 		}
 		if(IOB_DATAI){
+			if(getenv("PDP6_AAP_TTY_TRACE_V1") != nil)
+				fprintf(stderr, "AAP_TTY_DATAI_V1 byte=%03o flag=%d\n",
+				    tty->tti & 0177, tty->tti_flag);
 			bus->c12 |= tty->tti;
 			tty->tti_flag = 0;
 		}

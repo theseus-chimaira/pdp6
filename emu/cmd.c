@@ -785,6 +785,21 @@ c_aprclass(int argc, char *argv[])
 	fflush(stdout);
 }
 
+/* Read-only instruction-location snapshot for boot-failure triage. */
+static void
+c_aprwhere(int argc, char *argv[])
+{
+	Apr *a = getapr();
+	(void)argc;
+	(void)argv;
+	printf("APR_WHERE_V1 PC=%06o FETCH=%06o MA=%06o"
+	       " USER=%d PI=%d RUN=%d\n",
+	       (unsigned)a->pc, (unsigned)a->inst_ma,
+	       (unsigned)a->ma, !!a->ex_user,
+	       !!a->pi_active, !!a->run);
+	fflush(stdout);
+}
+
 static void
 c_switches(int argc, char *argv[])
 {
@@ -889,6 +904,8 @@ struct {
 		"report APR_FLAGS_V1 arithmetic and PC-change flip-flops" },
 	{ "aprclass", c_aprclass,
 		"report APR_CLASS_V1 memory fault, illegal-op and PI latches" },
+	{ "aprwhere", c_aprwhere,
+		"report APR_WHERE_V1 processor execution location and mode" },
 	{ "switches", c_switches,
 		"set the automated PDP-6 console switch word" },
 	{ "power", c_power,
