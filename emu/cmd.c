@@ -735,71 +735,6 @@ c_start(int argc, char *argv[])
 	apr_start_at(getapr(), (hword)addr);
 }
 
-/* The command thread dispatches commands in the simulation thread.
- * Inspect RUN there, never by unsynchronized polling in the CLI thread.
- * A queued START must not be mistaken for a completed HALT. */
-static void
-c_cpustatus(int argc, char *argv[])
-{
-	Apr *a = getapr();
-	const char *state;
-	(void)argc;
-	(void)argv;
-	if(a->run)
-		state = "RUNNING";
-	else if(a->remote_start || a->key_start ||
-	        (a->extpulse & EXT_KEY_START))
-		state = "START_PENDING";
-	else
-		state = "HALTED";
-	printf("APR_STATUS_V1 %s\n", state);
-	fflush(stdout);
-}
-
-/* Read-only APR arithmetic diagnostic. The command dispatcher runs on
- * the simulation thread, so flag values form a coherent snapshot. */
-static void
-c_aprflags(int argc, char *argv[])
-{
-	Apr *a = getapr();
-	(void)argc;
-	(void)argv;
-	printf("APR_FLAGS_V1 OV=%d CRY0=%d CRY1=%d PCCHG=%d\n",
-	       !!a->ar_ov_flag, !!a->ar_cry0_flag,
-	       !!a->ar_cry1_flag, !!a->ar_pc_chg_flag);
-	fflush(stdout);
-}
-
-/* Snapshot architectural exceptional-state latches at a console
- * command boundary. Report facts, not a guessed instruction outcome. */
-static void
-c_aprclass(int argc, char *argv[])
-{
-	Apr *a = getapr();
-	(void)argc;
-	(void)argv;
-	printf("APR_CLASS_V1 NXM=%d ILLOP=%d PDLOV=%d PI_ACTIVE=%d PI_REQ=%03o PI_CYC=%d\n",
-	       !!a->cpa_non_exist_mem, !!a->cpa_illeg_op,
-	       !!a->cpa_pdl_ov, !!a->pi_active,
-	       a->pi_req, !!a->pi_cyc);
-	fflush(stdout);
-}
-
-/* Read-only instruction-location snapshot for boot-failure triage. */
-static void
-c_aprwhere(int argc, char *argv[])
-{
-	Apr *a = getapr();
-	(void)argc;
-	(void)argv;
-	printf("APR_WHERE_V1 PC=%06o FETCH=%06o MA=%06o"
-	       " USER=%d PI=%d RUN=%d\n",
-	       (unsigned)a->pc, (unsigned)a->inst_ma,
-	       (unsigned)a->ma, !!a->ex_user,
-	       !!a->pi_active, !!a->run);
-	fflush(stdout);
-}
-
 static void
 c_switches(int argc, char *argv[])
 {
@@ -898,14 +833,6 @@ struct {
 		"press the PDP-6 READ IN key" },
 	{ "start", c_start,
 		"press START with an automated address: start address" },
-	{ "cpustatus", c_cpustatus,
-		"report APR_STATUS_V1 START_PENDING, RUNNING, or HALTED" },
-	{ "aprflags", c_aprflags,
-		"report APR_FLAGS_V1 arithmetic and PC-change flip-flops" },
-	{ "aprclass", c_aprclass,
-		"report APR_CLASS_V1 memory fault, illegal-op and PI latches" },
-	{ "aprwhere", c_aprwhere,
-		"report APR_WHERE_V1 processor execution location and mode" },
 	{ "switches", c_switches,
 		"set the automated PDP-6 console switch word" },
 	{ "power", c_power,

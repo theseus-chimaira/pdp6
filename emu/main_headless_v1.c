@@ -1,6 +1,5 @@
 /* Headless PDP-6: command interpreter, no panel or display transport. */
 #include "pdp6.h"
-#include "args.h"
 
 /* These hooks belong to the graphical console, not the CPU. */
 void
@@ -25,35 +24,18 @@ readconsreg(Apr *apr, u32 addr)
     return 0;
 }
 
-static void
-usage(void)
-{
-    fprintf(stderr, "usage: %s [-t] [-d debugfile]\n", argv0);
-    exit(1);
-}
-
 int
 threadmain(int argc, char *argv[])
 {
-    const char *outfile = "/dev/null";
     Channel *cmdchans[2];
     Task task;
     int cli_id;
 
-    ARGBEGIN {
-    case 't':
-        dotrace = 1;
-        break;
-    case 'd':
-        outfile = EARGF(usage());
-        break;
-    default:
-        usage();
-    } ARGEND;
-
-    debugfp = fopen(outfile, "w");
+    (void)argc;
+    (void)argv;
+    debugfp = fopen("/dev/null", "w");
     if (debugfp == nil)
-        err("cannot open debug file %s", outfile);
+        err("cannot open null output");
 
     rtcchan = chancreate(sizeof(RtcMsg), 20);
     /* The graphical init.ini mounts host-specific panel and tape devices.

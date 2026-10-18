@@ -559,11 +559,6 @@ dt_tp2(Dt551 *dt)
 		/* test checksum. NB: manual says should be 0
 		 * TODO: not sure about ACTIVE */
 		if(prev.rw_state == RW_ACTIVE && dt->lb != 077){
-			if(getenv("PDP6_AAP_DT_ERROR_TRACE_V1") != nil)
-				fprintf(stderr, "AAP_DT_ERROR_V1 kind=checksum unit=%d pos=%ld fcn=%o go=%d rev=%d lb=%02o\n",
-				    dt->seldx ? dt->seldx->unit : -1,
-				    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
-				    dt->ut_fcn, dt->ut_go, dt->ut_rev, dt->lb);
 			dbg("DTC checksum error unit=%d pos=%ld fcn=%o rw=%d lb=%02o\n",
 			    dt->seldx ? dt->seldx->unit : -1,
 			    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
@@ -578,11 +573,6 @@ dt_tp2(Dt551 *dt)
 
 	/* Catch wrongly set active state; 3-16 */
 	if(dt->sync_lines == 0 && UTE_ACTIVE_ERROR){
-		if(getenv("PDP6_AAP_DT_ERROR_TRACE_V1") != nil)
-			fprintf(stderr, "AAP_DT_ERROR_V1 kind=active unit=%d pos=%ld fcn=%o go=%d rev=%d tmk=%03o\n",
-			    dt->seldx ? dt->seldx->unit : -1,
-			    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
-			    dt->ut_fcn, dt->ut_go, dt->ut_rev, dt->tmk);
 		dbg("DTC active-state error unit=%d pos=%ld fcn=%o rw=%d tmk=%03o\n",
 		    dt->seldx ? dt->seldx->unit : -1,
 		    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
@@ -592,11 +582,6 @@ dt_tp2(Dt551 *dt)
 	}
 	/* Catch invalid mark code */
 	if(dt->sync_lines == 0 && UTE_ERROR){
-		if(getenv("PDP6_AAP_DT_ERROR_TRACE_V1") != nil)
-			fprintf(stderr, "AAP_DT_ERROR_V1 kind=mark unit=%d pos=%ld fcn=%o go=%d rev=%d utek=%03o\n",
-			    dt->seldx ? dt->seldx->unit : -1,
-			    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
-			    dt->ut_fcn, dt->ut_go, dt->ut_rev, dt->utek);
 		dbg("DTC mark-track error unit=%d pos=%ld fcn=%o rw=%d utek=%03o\n",
 		    dt->seldx ? dt->seldx->unit : -1,
 		    dt->seldx ? (long)(dt->seldx->cur-dt->seldx->start) : -1L,
@@ -993,21 +978,6 @@ dtex(Device *dev, const char *reg)
 	dt = (Dt551*)dev;
 	if(strcmp(reg, "btm_wr") == 0) return dt->ut_btm_switch;
 	else if(strcmp(reg, "go") == 0) return dt->ut_go;
-	else if(strcmp(reg, "state") == 0)
-		return ((word)(dt->ut_go & 1) << 35) |
-		       ((word)(dt->ut_rev & 1) << 34) |
-		       ((word)(dt->ut_fcn & 7) << 30) |
-		       ((word)(dt->rw_state & 7) << 27) |
-		       ((word)(dt->ut_info_error & 1) << 26) |
-		       ((word)(dt->ut_jb_done_flag & 1) << 25) |
-		       ((word)(dt->ut_units & 7) << 18) |
-		       (word)(dt->seldx ? dt->seldx->unit : 077);
-	else if(strcmp(reg, "pos") == 0)
-		return dt->seldx ? (word)(dt->seldx->cur - dt->seldx->start) : 0;
-	else if(strcmp(reg, "phase") == 0)
-		return ((word)(dt->sync_lines & 0777) << 18) |
-		       ((word)(dt->utek & 0777) << 9) |
-		       (word)(dt->uteck & 1);
 	return ~0;
 }
 

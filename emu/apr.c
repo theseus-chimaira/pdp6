@@ -1,6 +1,5 @@
 #include "pdp6.h"
 #include <unistd.h>
-#include <inttypes.h>
 
 // Schematics don't have USER IOT implemented fully
 #define FIX_USER_IOT
@@ -13,41 +12,6 @@
 #define FIX_MEMSTOP
 
 int loginst;
-
-/* Diagnostic milestones, not validated instruction-duration endpoints.
- * Logical units come from the relative pulse queue; they are not ns.
- */
-static void
-apr_timing_milestone_v1(Apr *apr, const char *name)
-{
-    static int enabled = -1;
-    if(enabled < 0){
-        const char *value = getenv("PDP6_AAP_TIMING_TRACE_V1");
-        enabled = value != nil && strcmp(value, "1") == 0;
-    }
-    if(enabled)
-        fprintf(stderr, "AAP_TIMING_V1 %s tick=%" PRIu64
-                " pc=%06o inst=%03o\n", name, apr->pulse_time_v1,
-                (unsigned)apr->pc, (unsigned)apr->inst);
-}
-
-/* Event-level exception/PI evidence for AAP profile exclusion.
- * Captured at the state-setting pulse, not a later console snapshot.
- * The pulse queue timestamp is logical, not elapsed nanoseconds.
- */
-static void
-apr_class_event_v1(Apr *apr, const char *name)
-{
-    static int enabled = -1;
-    if(enabled < 0){
-        const char *value = getenv("PDP6_AAP_CLASS_TRACE_V1");
-        enabled = value != nil && strcmp(value, "1") == 0;
-    }
-    if(enabled)
-        fprintf(stderr, "AAP_CLASS_EVENT_V1 type=%s tick=%" PRIu64
-                " pc=%06o\n", name, apr->pulse_time_v1,
-                (unsigned)apr->pc);
-}
 
 enum Opcode {
 	FSC    = 0132,
@@ -101,7 +65,6 @@ enum Opcode {
 	declpulse(p); \
 	defpulse_(p)
 
-#include "apr_pulse_clock_v1.h"
 static void aprcycle(void *p);
 static void wake_cpa(void *dev);
 static void wake_pi(void *dev);
@@ -176,8 +139,6 @@ stepone(Apr *apr)
 
 	p = apr->pulse;
 	if(p == nil) return 0;
-	if(apr_pulse_clock_advance_v1(&apr->pulse_time_v1, p->t) != 0)
-		err("APR pulse logical time overflow/negative delay");
 	apr->pulse = p->next;
 	trace("pulse %s\n", p->p->n);
 	p->p->f(apr);
@@ -549,7 +510,6 @@ void
 set_pi_cyc(Apr *apr, bool value)
 {
 	apr->pi_cyc = value;
-	if(value) apr_class_event_v1(apr, "PI_CYCLE");
 	if(apr->pi_cyc)
 		apr->ex_pi_sync = 1;	// 5-13
 }
@@ -2616,7 +2576,6 @@ defpulse_(et10)
 	}
 	if(apr->ir_jp && !(apr->ir & H6) && apr->ar_cry0){
 		apr->cpa_pdl_ov = 1;			// 8-5
-		apr_class_event_v1(apr, "PDLOV");
 		recalc_cpa_req(apr);
 	}
 	if(apr->inst == JFCL)
@@ -2743,17 +2702,6 @@ defpulse_(et4)
 defpulse(et3)
 {
 	if(apr->ex_ir_uuo){
-		/* Optional evidence at the UUO trap, before the guest overwrites
-		 * low core 040 or an interrupt changes the processor context. */
-		if((apr->ir & 0777740) == 0 &&
-		   getenv("PDP6_AAP_UUO_TRACE_V1") != nil)
-			fprintf(stderr, "AAP_UUO_ZERO_V1 tick=%" PRIu64
-			    " pc=%06o inst_ma=%06o ma=%06o ir=%06o"
-			    " ex_user=%d ex_mode_sync=%d\n",
-			    apr->pulse_time_v1, (unsigned)apr->pc,
-			    (unsigned)apr->inst_ma, (unsigned)apr->ma,
-			    (unsigned)apr->ir, apr->ex_user,
-			    apr->ex_mode_sync);
 		// MBLT <- IR(1) (UUO T0) on 6-3
 		apr->n.mb |= ((word)apr->ir&0777740) << 18;	// 6-1
 		apr->ma |= F30;				// 7-3
@@ -2881,7 +2829,6 @@ defpulse(et0)
 
 defpulse(et0a)
 {
-apr_timing_milestone_v1(apr, "ET0A");
 if(loginst){
 	debug("%06o: ", apr->inst_ma);
 	if((apr->inst & 0700) != 0700)
@@ -3143,7 +3090,6 @@ defpulse_(iat0)
 
 defpulse_(it0)
 {
-	apr_timing_milestone_v1(apr, "IT0");
 	apr->ma = 0;			// 7-3
 	// have to call directly because IF1A is set with a delay
 	mr_clr_p(apr);			// 5-2
@@ -3246,7 +3192,6 @@ defpulse(mc_non_exist_mem_rst)
 defpulse(mc_non_exist_mem)
 {
 	apr->cpa_non_exist_mem = 1;			// 8-5
-	apr_class_event_v1(apr, "NXM");
 	recalc_cpa_req(apr);
 	if(!apr->sw_mem_disable)
 		pulse(apr, &mc_non_exist_mem_rst, 0);	// 7-9
@@ -3261,7 +3206,6 @@ defpulse(mc_error_dly)
 defpulse(mc_illeg_address)
 {
 	apr->cpa_illeg_op = 1;				// 8-5
-	apr_class_event_v1(apr, "ILLOP");
 	recalc_cpa_req(apr);
 	pulse(apr, &st7, 100);				// 5-6
 }
